@@ -429,6 +429,9 @@ impl Lexer {
                 }
             }
         }
+
+        tokens.insert(tokens.len(), Token::new(TokenType::Eof, Position::new(self.line, 0), "".to_string()));
+        
         tokens
     }
 }

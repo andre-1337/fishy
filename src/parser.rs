@@ -53,7 +53,7 @@ impl Parser {
                 Err(err) => {
                     self.sync();
                     panic!("{}", err);
-                },
+                }
             }
         }
 
@@ -94,7 +94,9 @@ impl Parser {
     }
 
     fn struct_decl(&mut self) -> ParseResult<Stmt> {
-        let name = self.consume(TokenType::Identifier, "Expected struct name.")?.clone();
+        let name = self
+            .consume(TokenType::Identifier, "Expected struct name.")?
+            .clone();
 
         let mut traits = vec![];
         if self.matches(vec![TokenType::With]) {
@@ -115,15 +117,20 @@ impl Parser {
         let mut methods = vec![];
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
             if self.check(TokenType::Fn) {
+                self.advance();
                 methods.push(self.fn_decl()?);
             } else {
-                let field_name = self.consume(TokenType::Identifier, "Expected field name.")?.clone();
-                self.consume(TokenType::Colon, "Expected ':' after field name.")?;
-                let field_type = self.parse_type()?;
-                fields.push((field_name.clone(), field_type));
+                loop {
+                    if !self.matches(vec![TokenType::Comma]) {
+                        break;
+                    }
 
-                if !self.matches(vec![TokenType::Comma]) {
-                    break;
+                    let field_name = self
+                        .consume(TokenType::Identifier, "Expected field name.")?
+                        .clone();
+                    self.consume(TokenType::Colon, "Expected ':' after field name.")?;
+                    let field_type = self.parse_type()?;
+                    fields.push((field_name.clone(), field_type));
                 }
             }
         }
@@ -139,7 +146,9 @@ impl Parser {
     }
 
     fn trait_decl(&mut self) -> ParseResult<Stmt> {
-        let name = self.consume(TokenType::Identifier, "Expected trait name.")?.clone();
+        let name = self
+            .consume(TokenType::Identifier, "Expected trait name.")?
+            .clone();
         self.consume(TokenType::LeftBrace, "Expected '{' after trait name.")?;
 
         let mut methods = vec![];
@@ -149,25 +158,28 @@ impl Parser {
 
         self.consume(TokenType::RightBrace, "Expected '}' after trait body.")?;
 
-        Ok(Stmt::TraitStmt(TraitStmt {
-            name,
-            methods,
-        }))
+        Ok(Stmt::TraitStmt(TraitStmt { name, methods }))
     }
 
     fn enum_decl(&mut self) -> ParseResult<Stmt> {
-        let name = self.consume(TokenType::Identifier, "Expected enum name.")?.clone();
+        let name = self
+            .consume(TokenType::Identifier, "Expected enum name.")?
+            .clone();
 
         self.consume(TokenType::LeftBrace, "Expected '{' after enum name.")?;
 
         let mut variants = vec![];
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
-            let variant_name = self.consume(TokenType::Identifier, "Expected variant name.")?.clone();
+            let variant_name = self
+                .consume(TokenType::Identifier, "Expected variant name.")?
+                .clone();
             let mut fields = vec![];
 
             if self.matches(vec![TokenType::LeftParen]) {
                 loop {
-                    let field_name = self.consume(TokenType::Identifier, "Expected field name.")?.clone();
+                    let field_name = self
+                        .consume(TokenType::Identifier, "Expected field name.")?
+                        .clone();
                     self.consume(TokenType::Colon, "Expected ':' after field name.")?;
                     let field_type = self.parse_type()?;
                     fields.push((field_name.clone(), field_type));
@@ -196,14 +208,18 @@ impl Parser {
     }
 
     fn fn_decl(&mut self) -> ParseResult<Stmt> {
-        let name = self.consume(TokenType::Identifier, "Expected function name.")?.clone();
+        let name = self
+            .consume(TokenType::Identifier, "Expected function name.")?
+            .clone();
 
         self.consume(TokenType::LeftParen, "Expected '(' after function name.")?;
 
         let mut params = vec![];
         while !self.check(TokenType::RightParen) && !self.is_at_end() {
             let is_mut = self.matches(vec![TokenType::Mut]);
-            let param_name = self.consume(TokenType::Identifier, "Expected parameter name.")?.clone();
+            let param_name = self
+                .consume(TokenType::Identifier, "Expected parameter name.")?
+                .clone();
             self.consume(TokenType::Colon, "Expected ':' after parameter name.")?;
             let param_type = self.parse_type()?;
             params.push((param_name.clone(), param_type, is_mut));
@@ -237,7 +253,9 @@ impl Parser {
     }
 
     fn let_decl(&mut self) -> ParseResult<Stmt> {
-        let name = self.consume(TokenType::Identifier, "Expected variable name.")?.clone();
+        let name = self
+            .consume(TokenType::Identifier, "Expected variable name.")?
+            .clone();
 
         let mut type_ = None;
         if self.matches(vec![TokenType::Colon]) {
@@ -266,6 +284,8 @@ impl Parser {
         // for the time being to keep things simple.
         // pointers are enough of a headache as it is.
 
+        println!("{:?}", self.peek());
+
         match self.peek().ttype {
             TokenType::LeftBracket => {
                 self.advance();
@@ -284,6 +304,7 @@ impl Parser {
             }
 
             TokenType::Identifier => {
+                println!("{:?}", self.previous());
                 let token = self.previous().clone();
 
                 match token.value.as_str() {
@@ -375,7 +396,10 @@ impl Parser {
 
         let body = self.statement()?;
 
-        Ok(Stmt::WhileStmt(WhileStmt { condition, body: Box::new(body) }))
+        Ok(Stmt::WhileStmt(WhileStmt {
+            condition,
+            body: Box::new(body),
+        }))
     }
 
     fn for_stmt(&mut self) -> ParseResult<Stmt> {
@@ -453,20 +477,16 @@ impl Parser {
             let value = self.assignment()?;
 
             match &expr {
-                Expr::VarExpr(VarExpr { name }) => {
-                    Ok(Expr::AssignExpr(AssignExpr {
-                        name: name.clone(),
-                        value: Box::new(value),
-                    }))
-                }
+                Expr::VarExpr(VarExpr { name }) => Ok(Expr::AssignExpr(AssignExpr {
+                    name: name.clone(),
+                    value: Box::new(value),
+                })),
 
-                Expr::GetExpr(GetExpr { name, object }) => {
-                    Ok(Expr::SetExpr(SetExpr {
-                        name: name.clone(),
-                        object: (*object).clone(),
-                        value: Box::new(value),
-                    }))
-                }
+                Expr::GetExpr(GetExpr { name, object }) => Ok(Expr::SetExpr(SetExpr {
+                    name: name.clone(),
+                    object: (*object).clone(),
+                    value: Box::new(value),
+                })),
 
                 _ => {
                     let token = &self.previous().clone();
@@ -588,7 +608,10 @@ impl Parser {
             let operator = self.previous().clone();
             let right = self.unary()?;
 
-            Ok(Expr::UnaryExpr(UnaryExpr { operator, right: Box::new(right) }))
+            Ok(Expr::UnaryExpr(UnaryExpr {
+                operator,
+                right: Box::new(right),
+            }))
         } else {
             self.call()
         }
@@ -639,12 +662,15 @@ impl Parser {
         let token = &self.peek().clone();
 
         if self.matches(vec![TokenType::Identifier]) {
-            self.advance();
             let literal = self.previous();
 
             return match literal.value.as_str() {
-                "true" | "false" => Ok(Expr::LiteralExpr(LiteralExpr { value: literal.clone() })),
-                _ => Ok(Expr::LiteralExpr(LiteralExpr { value: literal.clone() })),
+                "true" | "false" => Ok(Expr::LiteralExpr(LiteralExpr {
+                    value: literal.clone(),
+                })),
+                _ => Ok(Expr::LiteralExpr(LiteralExpr {
+                    value: literal.clone(),
+                })),
             };
         }
 
@@ -663,7 +689,9 @@ impl Parser {
         if self.matches(vec![TokenType::LeftParen]) {
             let expr = self.parse_expr()?;
             self.consume(TokenType::RightParen, "Expected ')' after expression.")?;
-            return Ok(Expr::GroupingExpr(GroupingExpr { expression: Box::new(expr) }));
+            return Ok(Expr::GroupingExpr(GroupingExpr {
+                expression: Box::new(expr),
+            }));
         }
 
         Err(self.error(token, "Expected expression."))
@@ -710,18 +738,10 @@ impl Parser {
     }
 
     fn peek(&mut self) -> &Token {
-        if self.tokens.len() <= self.current {
-            return &self.tokens[self.tokens.len() - 1];
-        }
-
         &self.tokens[self.current]
     }
 
     fn previous(&mut self) -> &Token {
-        if self.tokens.len() <= self.current {
-            return &self.tokens.last().unwrap();
-        }
-
         &self.tokens[self.current - 1]
     }
 
@@ -761,6 +781,8 @@ impl Parser {
 
                 _ => {}
             }
+
+            self.advance();
         }
     }
 }
