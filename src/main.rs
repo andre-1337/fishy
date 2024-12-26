@@ -2,8 +2,26 @@ use fishy::{lexer::Lexer, parser::Parser};
 
 fn main() {
     let code = r#"
-printf("Hello, world");
-self.relatives.insert(relative);
+alias str = ^const u8;
+
+extern fn printf(str) -> i32;
+
+struct Person {
+    name: str,
+    age: u8,
+    address: str,
+    relatives: [Person; ?],
+
+    fn new(name: str, age: u8, address: str): Person {}
+
+    fn add_relative(self: &mut Person, relative: Person) {
+        self.relatives.insert(relative);
+    }
+}
+
+fn main(): i32 {
+    printf("Hello, world!");
+}
 "#;
 
     let mut lexer = Lexer::new(code.to_string());

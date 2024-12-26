@@ -435,7 +435,10 @@ impl Parser {
         self.consume(TokenType::RightParen, "Expeced ')' after parameter types.")?;
         self.consume(TokenType::Arrow, "Expected '->' after parameter types.")?;
         let return_type = self.parse_type()?;
-        self.consume(TokenType::Semicolon, "Expected ';' after extern function declaration.")?;
+        self.consume(
+            TokenType::Semicolon,
+            "Expected ';' after extern function declaration.",
+        )?;
 
         Ok(Stmt::ExternFnStmt(ExternFnStmt {
             name,
@@ -954,14 +957,6 @@ impl Parser {
         }
 
         self.current_token().ttype == ttype
-    }
-
-    fn check_next(&mut self, ttype: TokenType) -> bool {
-        if self.is_at_end() {
-            return false;
-        }
-
-        self.tokens[self.current + 1].ttype == ttype
     }
 
     fn advance(&mut self) {
