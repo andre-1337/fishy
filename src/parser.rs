@@ -924,9 +924,40 @@ impl Parser {
 
             TokenType::Identifier => {
                 dbg!(self.current_token());
-                Ok(Expr::VarExpr(VarExpr {
-                    name: token.clone(),
-                }))
+                let name = token.clone();
+
+                if matches!(self.current_token().ttype, TokenType::LeftBrace) {
+                    self.advance();
+    
+                    let mut arguments = vec![];
+                    loop {
+                        let field_name = self
+                            .consume(TokenType::Identifier, "Expected field name.")?
+                            .clone();
+                        self.consume(TokenType::Colon, "Expected ':' after field name.")?;
+                        let field_value = self.parse_expr()?;
+    
+                        arguments.push((field_name.clone(), field_value));
+    
+                        if matches!(self.current_token().ttype, TokenType::Comma) {
+                            self.advance();
+                        } else {
+                            break;
+                        }
+                    }
+    
+                    self.consume(
+                        TokenType::RightBrace,
+                        "Expected '}' after struct initializer literal.",
+                    )?;
+    
+                    return Ok(Expr::StructInitializerExpr(StructInitializerExpr { name, arguments }));
+                } else {
+                    // otherwise it's just a variable reference
+                    return Ok(Expr::VarExpr(VarExpr {
+                        name: token.clone(),
+                    }));
+                }
             }
 
             TokenType::LeftParen => {
@@ -935,6 +966,27 @@ impl Parser {
                 Ok(Expr::GroupingExpr(GroupingExpr {
                     expression: Box::new(expr),
                 }))
+            }
+
+            TokenType::LeftBracket => {
+                let mut values = vec![];
+                loop {
+                    if matches!(self.current_token().ttype, TokenType::RightBracket) {
+                        break;
+                    }
+
+                    values.push(self.parse_expr()?);
+
+                    if matches!(self.current_token().ttype, TokenType::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+
+                self.consume(TokenType::RightBracket, "Expected ']' after array literal.")?;
+
+                Ok(Expr::TupleExpr(TupleExpr { values }))
             }
 
             _ => Err(self.error(&token, "Expected expression.")),

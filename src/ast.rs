@@ -32,6 +32,8 @@ pub enum Expr {
     VarExpr(VarExpr),
     LambdaExpr(LambdaExpr),
     TupleExpr(TupleExpr),
+    StructInitializerExpr(StructInitializerExpr),
+    ArrayInitializerExpr(ArrayInitializerExpr),
 }
 
 #[derive(Debug, Clone)]
@@ -209,11 +211,22 @@ pub struct VarExpr {
 
 #[derive(Debug, Clone)]
 pub struct LambdaExpr {
-    pub params: Vec<(Token, Type, bool)>,
+    pub params: Vec<(Token, Type)>,
     pub body: Box<Stmt>,
 }
 
 #[derive(Debug, Clone)]
 pub struct TupleExpr {
+    pub values: Vec<Expr>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StructInitializerExpr {
+    pub name: Token,
+    pub arguments: Vec<(Token, Expr)>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ArrayInitializerExpr {
     pub values: Vec<Expr>,
 }

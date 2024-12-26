@@ -12,7 +12,14 @@ struct Person {
     address: str,
     relatives: [Person; ?],
 
-    fn new(name: str, age: u8, address: str): Person {}
+    fn new(name: str, age: u8, address: str): Person {
+        return Person {
+            name: name,
+            age: age,
+            address: address,
+            relatives: [ ]
+        };
+    }
 
     fn add_relative(self: &mut Person, relative: Person) {
         self.relatives.insert(relative);
