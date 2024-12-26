@@ -61,23 +61,23 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> ParseResult<Stmt> {
-        if self.matches(vec![TokenType::Struct]) {
+        if matches!(self.current_token().ttype, TokenType::Struct) {
             return self.struct_decl();
         }
 
-        if self.matches(vec![TokenType::Trait]) {
+        if matches!(self.current_token().ttype, TokenType::Trait) {
             return self.trait_decl();
         }
 
-        if self.matches(vec![TokenType::Enum]) {
+        if matches!(self.current_token().ttype, TokenType::Enum) {
             return self.enum_decl();
         }
 
-        if self.matches(vec![TokenType::Fn]) {
+        if matches!(self.current_token().ttype, TokenType::Fn) {
             return self.fn_decl();
         }
 
-        if self.matches(vec![TokenType::Let]) {
+        if matches!(self.current_token().ttype, TokenType::Let) {
             return self.let_decl();
         }
 
@@ -87,7 +87,7 @@ impl Parser {
                 self.sync();
                 Err(ParseError::new(
                     "Failed to parse declaration.",
-                    self.previous(),
+                    self.current_token(),
                 ))
             }
         }
@@ -97,17 +97,17 @@ impl Parser {
         let name = self
             .consume(TokenType::Identifier, "Expected struct name.")?
             .clone();
-
+        println!("name {:?}", name);
         let mut traits = vec![];
-        if self.matches(vec![TokenType::With]) {
+        if matches!(self.current_token().ttype, TokenType::With) {
             loop {
                 traits.push(self.parse_expr()?);
-                if !self.matches(vec![TokenType::Comma]) {
+                if !matches!(self.current_token().ttype, TokenType::Comma) {
                     break;
                 }
             }
         }
-
+        println!("traits {:?}", traits);
         self.consume(
             TokenType::LeftBrace,
             "Expected '{' after struct name or traits.",
@@ -115,13 +115,15 @@ impl Parser {
 
         let mut fields = vec![];
         let mut methods = vec![];
+
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
+            self.advance();
             if self.check(TokenType::Fn) {
                 self.advance();
                 methods.push(self.fn_decl()?);
             } else {
                 loop {
-                    if !self.matches(vec![TokenType::Comma]) {
+                    if !matches!(self.current_token().ttype, TokenType::Comma) {
                         break;
                     }
 
@@ -134,6 +136,8 @@ impl Parser {
                 }
             }
         }
+
+        println!("fields {:?}", fields);
 
         self.consume(TokenType::RightBrace, "Expected '}' after struct body.")?;
 
@@ -175,7 +179,7 @@ impl Parser {
                 .clone();
             let mut fields = vec![];
 
-            if self.matches(vec![TokenType::LeftParen]) {
+            if matches!(self.current_token().ttype, TokenType::LeftParen) {
                 loop {
                     let field_name = self
                         .consume(TokenType::Identifier, "Expected field name.")?
@@ -184,7 +188,7 @@ impl Parser {
                     let field_type = self.parse_type()?;
                     fields.push((field_name.clone(), field_type));
 
-                    if !self.matches(vec![TokenType::Comma]) {
+                    if !matches!(self.current_token().ttype, TokenType::Comma) {
                         break;
                     }
                 }
@@ -194,7 +198,7 @@ impl Parser {
 
             variants.push((variant_name.clone(), fields));
 
-            if !self.matches(vec![TokenType::Comma]) {
+            if !matches!(self.current_token().ttype, TokenType::Comma) {
                 break;
             }
         }
@@ -216,7 +220,7 @@ impl Parser {
 
         let mut params = vec![];
         while !self.check(TokenType::RightParen) && !self.is_at_end() {
-            let is_mut = self.matches(vec![TokenType::Mut]);
+            let is_mut = matches!(self.current_token().ttype, TokenType::Mut);
             let param_name = self
                 .consume(TokenType::Identifier, "Expected parameter name.")?
                 .clone();
@@ -224,7 +228,7 @@ impl Parser {
             let param_type = self.parse_type()?;
             params.push((param_name.clone(), param_type, is_mut));
 
-            if !self.matches(vec![TokenType::Comma]) {
+            if !matches!(self.current_token().ttype, TokenType::Comma) {
                 break;
             }
         }
@@ -234,7 +238,7 @@ impl Parser {
             "Expected ')' after function parameters.",
         )?;
 
-        let return_type = if self.matches(vec![TokenType::Colon]) {
+        let return_type = if matches!(self.current_token().ttype, TokenType::Colon) {
             Some(self.parse_type()?)
         } else {
             None
@@ -257,14 +261,19 @@ impl Parser {
             .consume(TokenType::Identifier, "Expected variable name.")?
             .clone();
 
+        println!("name {:?}", name);
         let mut type_ = None;
-        if self.matches(vec![TokenType::Colon]) {
+        if matches!(self.current_token().ttype, TokenType::Colon) {
             type_ = Some(self.parse_type()?);
         }
 
         let mut initializer = None;
-        if self.matches(vec![TokenType::Equal]) {
+
+        println!("current {:?}", self.current_token());
+        if self.current_token().ttype == TokenType::Equal {
+            self.advance();
             initializer = Some(self.parse_expr()?);
+            println!("init {:?}", initializer);
         }
 
         self.consume(
@@ -284,14 +293,14 @@ impl Parser {
         // for the time being to keep things simple.
         // pointers are enough of a headache as it is.
 
-        println!("{:?}", self.peek());
+        println!("type peek {:?}", self.current_token());
 
-        match self.peek().ttype {
+        match self.current_token().ttype {
             TokenType::LeftBracket => {
                 self.advance();
                 let inner = self.parse_type()?;
                 self.consume(TokenType::Semicolon, "Expected ';' after array type.")?;
-                let size = self.previous().value.parse().unwrap();
+                let size = self.current_token().value.parse().unwrap();
                 self.consume(TokenType::RightBracket, "Expected ']' after array type.")?;
 
                 Ok(Type::Array(Box::new(inner), size))
@@ -304,8 +313,9 @@ impl Parser {
             }
 
             TokenType::Identifier => {
-                println!("{:?}", self.previous());
-                let token = self.previous().clone();
+                println!("id {:?}", self.current_token());
+                let token = self.current_token().clone();
+                self.advance();
 
                 match token.value.as_str() {
                     "i8" => Ok(Type::Int(8, true)),
@@ -347,23 +357,23 @@ impl Parser {
     }
 
     fn statement(&mut self) -> ParseResult<Stmt> {
-        if self.matches(vec![TokenType::If]) {
+        if matches!(self.current_token().ttype, TokenType::If) {
             return self.if_stmt();
         }
 
-        if self.matches(vec![TokenType::While]) {
+        if matches!(self.current_token().ttype, TokenType::While) {
             return self.while_stmt();
         }
 
-        if self.matches(vec![TokenType::For]) {
+        if matches!(self.current_token().ttype, TokenType::For) {
             return self.for_stmt();
         }
 
-        if self.matches(vec![TokenType::Return]) {
+        if matches!(self.current_token().ttype, TokenType::Return) {
             return self.return_stmt();
         }
 
-        if self.matches(vec![TokenType::Break]) {
+        if matches!(self.current_token().ttype, TokenType::Break) {
             return self.break_stmt();
         }
 
@@ -376,7 +386,7 @@ impl Parser {
         self.consume(TokenType::RightParen, "Expected ')' after if condition.")?;
 
         let then_branch = self.statement()?;
-        let else_branch = if self.matches(vec![TokenType::Else]) {
+        let else_branch = if matches!(self.current_token().ttype, TokenType::Else) {
             Some(Box::new(self.statement()?))
         } else {
             None
@@ -405,9 +415,9 @@ impl Parser {
     fn for_stmt(&mut self) -> ParseResult<Stmt> {
         self.consume(TokenType::LeftParen, "Expected '(' after 'for'.")?;
 
-        let initializer = if self.matches(vec![TokenType::Semicolon]) {
+        let initializer = if matches!(self.current_token().ttype, TokenType::Semicolon) {
             None
-        } else if self.matches(vec![TokenType::Let]) {
+        } else if matches!(self.current_token().ttype, TokenType::Let) {
             Some(self.let_decl()?)
         } else {
             Some(self.expression_stmt()?)
@@ -440,7 +450,7 @@ impl Parser {
     }
 
     fn return_stmt(&mut self) -> ParseResult<Stmt> {
-        let keyword = self.previous().clone();
+        let keyword = self.current_token().clone();
         let value = if self.check(TokenType::Semicolon) {
             None
         } else {
@@ -453,7 +463,7 @@ impl Parser {
     }
 
     fn break_stmt(&mut self) -> ParseResult<Stmt> {
-        let keyword = self.previous().clone();
+        let keyword = self.current_token().clone();
         self.consume(TokenType::Semicolon, "Expected ';' after 'break'.")?;
 
         Ok(Stmt::BreakStmt(BreakStmt { keyword }))
@@ -472,8 +482,9 @@ impl Parser {
 
     fn assignment(&mut self) -> ParseResult<Expr> {
         let expr = self.or()?;
+        println!("assign {:?}", expr);
 
-        if self.matches(vec![TokenType::Equal]) {
+        if matches!(self.current_token().ttype, TokenType::Equal) {
             let value = self.assignment()?;
 
             match &expr {
@@ -489,7 +500,7 @@ impl Parser {
                 })),
 
                 _ => {
-                    let token = &self.previous().clone();
+                    let token = &self.current_token().clone();
                     Err(self.error(token, "Invalid assignment target."))
                 }
             }
@@ -500,9 +511,9 @@ impl Parser {
 
     fn or(&mut self) -> ParseResult<Expr> {
         let mut expr = self.and()?;
-
-        while self.matches(vec![TokenType::PipePipe]) {
-            let operator = self.previous().clone();
+        println!("or {:?}", expr);
+        while matches!(self.current_token().ttype, TokenType::PipePipe) {
+            let operator = self.current_token().clone();
             let right = self.and()?;
             expr = Expr::BinaryExpr(BinaryExpr {
                 left: Box::new(expr),
@@ -516,9 +527,9 @@ impl Parser {
 
     fn and(&mut self) -> ParseResult<Expr> {
         let mut expr = self.equality()?;
-
-        while self.matches(vec![TokenType::AmpersandAmpersand]) {
-            let operator = self.previous().clone();
+        println!("and {:?}", expr);
+        while matches!(self.current_token().ttype, TokenType::AmpersandAmpersand) {
+            let operator = self.current_token().clone();
             let right = self.equality()?;
             expr = Expr::BinaryExpr(BinaryExpr {
                 left: Box::new(expr),
@@ -532,9 +543,13 @@ impl Parser {
 
     fn equality(&mut self) -> ParseResult<Expr> {
         let mut expr = self.comparison()?;
+        println!("eq {:?}", expr);
 
-        while self.matches(vec![TokenType::EqualEqual, TokenType::ExclamationEqual]) {
-            let operator = self.previous().clone();
+        while matches!(
+            self.current_token().ttype,
+            TokenType::EqualEqual | TokenType::ExclamationEqual
+        ) {
+            let operator = self.current_token().clone();
             let right = self.comparison()?;
 
             expr = Expr::BinaryExpr(BinaryExpr {
@@ -549,14 +564,13 @@ impl Parser {
 
     fn comparison(&mut self) -> ParseResult<Expr> {
         let mut expr = self.term()?;
+        println!("comp {:?}", expr);
 
-        while self.matches(vec![
-            TokenType::Greater,
-            TokenType::GreaterEqual,
-            TokenType::Less,
-            TokenType::LessEqual,
-        ]) {
-            let operator = self.previous().clone();
+        while matches!(
+            self.current_token().ttype,
+            TokenType::Greater | TokenType::GreaterEqual | TokenType::Less | TokenType::LessEqual
+        ) {
+            let operator = self.current_token().clone();
             let right = self.term()?;
 
             expr = Expr::BinaryExpr(BinaryExpr {
@@ -571,9 +585,12 @@ impl Parser {
 
     fn term(&mut self) -> ParseResult<Expr> {
         let mut expr = self.factor()?;
-
-        while self.matches(vec![TokenType::Plus, TokenType::Minus]) {
-            let operator = self.previous().clone();
+        println!("term {:?}", expr);
+        while matches!(
+            self.current_token().ttype,
+            TokenType::Plus | TokenType::Minus
+        ) {
+            let operator = self.current_token().clone();
             let right = self.factor()?;
 
             expr = Expr::BinaryExpr(BinaryExpr {
@@ -588,9 +605,12 @@ impl Parser {
 
     fn factor(&mut self) -> ParseResult<Expr> {
         let mut expr = self.unary()?;
-
-        while self.matches(vec![TokenType::Star, TokenType::Slash]) {
-            let operator = self.previous().clone();
+        println!("factor {:?}", expr);
+        while matches!(
+            self.current_token().ttype,
+            TokenType::Star | TokenType::Slash
+        ) {
+            let operator = self.current_token().clone();
             let right = self.unary()?;
 
             expr = Expr::BinaryExpr(BinaryExpr {
@@ -604,10 +624,16 @@ impl Parser {
     }
 
     fn unary(&mut self) -> ParseResult<Expr> {
-        if self.matches(vec![TokenType::Exclamation, TokenType::Minus]) {
-            let operator = self.previous().clone();
+        println!("unary {:?}", self.current_token());
+        if matches!(
+            self.current_token().ttype,
+            TokenType::Exclamation | TokenType::Minus
+        ) {
+            let operator = self.current_token().clone();
+            self.advance();
             let right = self.unary()?;
-
+            println!("op {:?}", operator);
+            println!("right {:?}", right);
             Ok(Expr::UnaryExpr(UnaryExpr {
                 operator,
                 right: Box::new(right),
@@ -619,11 +645,11 @@ impl Parser {
 
     fn call(&mut self) -> ParseResult<Expr> {
         let mut expr = self.primary()?;
-
+        println!("call {:?}", expr);
         loop {
-            if self.matches(vec![TokenType::LeftParen]) {
+            if matches!(self.current_token().ttype, TokenType::LeftParen) {
                 expr = self.finish_call(expr)?;
-            } else if self.matches(vec![TokenType::Dot]) {
+            } else if matches!(self.current_token().ttype, TokenType::Dot) {
                 let name = self.consume(TokenType::Identifier, "Expected property name.")?;
                 expr = Expr::GetExpr(GetExpr {
                     name: name.clone(),
@@ -633,7 +659,7 @@ impl Parser {
                 break;
             }
         }
-
+        println!("call {:?}", expr);
         Ok(expr)
     }
 
@@ -644,7 +670,7 @@ impl Parser {
             loop {
                 arguments.push(self.parse_expr()?);
 
-                if !self.matches(vec![TokenType::Comma]) {
+                if matches!(self.current_token().ttype, TokenType::Comma) {
                     break;
                 }
             }
@@ -659,61 +685,50 @@ impl Parser {
     }
 
     fn primary(&mut self) -> ParseResult<Expr> {
-        let token = &self.peek().clone();
+        println!("prim {:?}", self.current_token());
+        let token = self.current_token().clone();
 
-        if self.matches(vec![TokenType::Identifier]) {
-            let literal = self.previous();
-
-            return match literal.value.as_str() {
-                "true" | "false" => Ok(Expr::LiteralExpr(LiteralExpr {
-                    value: literal.clone(),
-                })),
-                _ => Ok(Expr::LiteralExpr(LiteralExpr {
-                    value: literal.clone(),
-                })),
-            };
-        }
-
-        if self.matches(vec![TokenType::Number, TokenType::String]) {
-            return Ok(Expr::LiteralExpr(LiteralExpr {
-                value: self.previous().clone(),
-            }));
-        }
-
-        if self.matches(vec![TokenType::Identifier]) {
-            return Ok(Expr::VarExpr(VarExpr {
-                name: self.previous().clone(),
-            }));
-        }
-
-        if self.matches(vec![TokenType::LeftParen]) {
-            let expr = self.parse_expr()?;
-            self.consume(TokenType::RightParen, "Expected ')' after expression.")?;
-            return Ok(Expr::GroupingExpr(GroupingExpr {
-                expression: Box::new(expr),
-            }));
-        }
-
-        Err(self.error(token, "Expected expression."))
-    }
-
-    fn matches(&mut self, types: Vec<TokenType>) -> bool {
-        for ttype in types {
-            if self.check(ttype) {
+        match token.ttype {
+            TokenType::Number => {
                 self.advance();
-                return true;
+                Ok(Expr::LiteralExpr(LiteralExpr {
+                    value: token.clone(),
+                }))
             }
-        }
 
-        false
+            TokenType::String => {
+                self.advance();
+                Ok(Expr::LiteralExpr(LiteralExpr {
+                    value: token.clone(),
+                }))
+            }
+
+            TokenType::Identifier => {
+                self.advance();
+                Ok(Expr::VarExpr(VarExpr {
+                    name: token.clone(),
+                }))
+            }
+
+            TokenType::LeftParen => {
+                self.advance();
+                let expr = self.parse_expr()?;
+                self.consume(TokenType::RightParen, "Expected ')' after expression.")?;
+                Ok(Expr::GroupingExpr(GroupingExpr {
+                    expression: Box::new(expr),
+                }))
+            }
+
+            _ => Err(self.error(&token, "Expected expression.")),
+        }
     }
 
-    fn consume(&mut self, ttype: TokenType, msg: &str) -> ParseResult<&Token> {
+    fn consume(&mut self, ttype: TokenType, msg: &str) -> ParseResult<Token> {
+        let token = self.current_token().clone();
         if self.check(ttype) {
-            return Ok(self.advance());
+            self.current += 1;
+            return Ok(token);
         }
-
-        let token = self.peek().clone();
         Err(self.error(&token, msg))
     }
 
@@ -722,27 +737,19 @@ impl Parser {
             return false;
         }
 
-        self.peek().ttype == ttype
+        self.current_token().ttype == ttype
     }
 
-    fn advance(&mut self) -> &Token {
-        if !self.is_at_end() {
-            self.current += 1;
-        }
-
-        self.previous()
+    fn advance(&mut self) {
+        self.current += 1;
     }
 
     fn is_at_end(&mut self) -> bool {
-        self.peek().ttype == TokenType::Eof
+        self.current_token().ttype == TokenType::Eof
     }
 
-    fn peek(&mut self) -> &Token {
+    fn current_token(&mut self) -> &Token {
         &self.tokens[self.current]
-    }
-
-    fn previous(&mut self) -> &Token {
-        &self.tokens[self.current - 1]
     }
 
     fn error(&mut self, token: &Token, msg: &str) -> ParseError {
@@ -753,11 +760,11 @@ impl Parser {
         self.advance();
 
         while !self.is_at_end() {
-            if self.previous().ttype == TokenType::Semicolon {
+            if self.current_token().ttype == TokenType::Semicolon {
                 return;
             }
 
-            match self.peek().ttype {
+            match self.current_token().ttype {
                 TokenType::If
                 | TokenType::Else
                 | TokenType::While

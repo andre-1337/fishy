@@ -2,7 +2,11 @@ use fishy::{lexer::Lexer, parser::Parser};
 
 fn main() {
     let code = r#"
-let name: ^u8 = "";
+struct Person {
+    name: ^u8,
+    age: u64,
+    address: ^u8
+}
     "#;
 
     let mut lexer = Lexer::new(code.to_string());
