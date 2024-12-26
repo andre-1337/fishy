@@ -1,6 +1,12 @@
 # Fishy
 
-![Fishy's logo](/asset/fishy.png)
+![Fishy Logo](/asset/fishy.png)
+
+<style>
+img[alt="Fishy Logo"] {
+  width: 256px;
+}
+</style>
 
 Fishy is a programming language that aims to be a middle point between C/C++ and Rust. A (somewhat) memory safe language, without holding your hands.
 
