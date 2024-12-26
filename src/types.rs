@@ -1,7 +1,4 @@
-// The following describes an API to construct types in Fishy, as well as convert
-// them down to LLVM types.
-
-
+// The following describes an API to construct types in Fishy
 
 #[derive(Debug, Clone)]
 pub enum Type {
@@ -11,14 +8,16 @@ pub enum Type {
     Float(u8),
     Boolean,
     Void,
-    // Box<Type>: inner type
-    Pointer(Box<Type>),
+    // Box<Type>: inner type, bool: is_mut_ptr
+    Pointer(Box<Type>, bool),
+    // Box<Type>: inner type, bool: is_mut_ref
+    Reference(Box<Type>, bool),
     // Box<Type>: element type, u32: size
     Array(Box<Type>, u32),
-    // Vec<(String, Type)>: fields
-    Struct(Vec<(String, Type)>),
     // Box<Type>: return type, Vec<Type> parameter types
     FunctionPtr(Box<Type>, Vec<Type>),
+    // String: name
+    UserDefined(String),
 }
 
 impl std::fmt::Display for Type {
@@ -28,17 +27,16 @@ impl std::fmt::Display for Type {
             Type::Float(bits) => write!(f, "f{}", bits),
             Type::Boolean => write!(f, "bool"),
             Type::Void => write!(f, "void"),
-            Type::Pointer(inner) => write!(f, "^{}", inner),
+            Type::Pointer(inner, is_mut_ptr) => {
+                write!(
+                    f,
+                    "^{} {}",
+                    if *is_mut_ptr { "mut" } else { "const" },
+                    inner
+                )
+            }
+            Type::Reference(inner, is_mut_ref) => write!(f, "&{}{}", if *is_mut_ref { "mut " } else { "" }, inner),
             Type::Array(inner, size) => write!(f, "[{}; {}]", inner, size),
-            Type::Struct(fields) => write!(
-                f,
-                "struct {{ {} }}",
-                fields
-                    .iter()
-                    .map(|(name, ty)| format!("{}: {}", name, ty))
-                    .collect::<Vec<String>>()
-                    .join(", ")
-            ),
             Type::FunctionPtr(return_type, param_types) => {
                 write!(f, "fn(")?;
                 for (i, param) in param_types.iter().enumerate() {
@@ -48,7 +46,8 @@ impl std::fmt::Display for Type {
                     }
                 }
                 write!(f, ") -> {}", return_type)
-            }
+            },
+            Type::UserDefined(name) => write!(f, "{}", name),
         }
     }
 }

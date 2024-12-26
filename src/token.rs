@@ -39,6 +39,7 @@ pub enum TokenType {
     ExclamationEqual,
     AmpersandAmpersand,
     PipePipe,
+    Arrow,
 
     Identifier,
     String,
@@ -113,6 +114,7 @@ impl std::fmt::Display for TokenType {
             TokenType::ExclamationEqual => write!(f, "!="),
             TokenType::AmpersandAmpersand => write!(f, "&&"),
             TokenType::PipePipe => write!(f, "||"),
+            TokenType::Arrow => write!(f, "->"),
 
             TokenType::Identifier => write!(f, "<identifier>"),
             TokenType::String => write!(f, "<string>"),

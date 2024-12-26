@@ -44,7 +44,7 @@ impl Parser {
         Parser { tokens, current: 0 }
     }
 
-    pub fn parse(&mut self) -> Vec<Stmt> {
+    pub fn parse(&mut self) -> Module {
         let mut stmts = vec![];
 
         while !self.is_at_end() {
@@ -57,7 +57,7 @@ impl Parser {
             }
         }
 
-        stmts
+        Module::new("main".to_string(), stmts)
     }
 
     fn declaration(&mut self) -> ParseResult<Stmt> {
@@ -65,16 +65,15 @@ impl Parser {
             TokenType::Struct => self.struct_decl(),
             TokenType::Trait => self.trait_decl(),
             TokenType::Enum => self.enum_decl(),
-            TokenType::Fn => self.fn_decl(),
+            TokenType::Fn => self.fn_decl(false),
             TokenType::Let => self.let_decl(),
+            TokenType::Alias => self.alias_decl(),
+            TokenType::Extern => self.extern_decl(),
             _ => match self.statement() {
                 Ok(stmt) => Ok(stmt),
-                Err(_) => {
+                Err(e) => {
                     self.sync();
-                    Err(ParseError::new(
-                        "Failed to parse declaration.",
-                        self.current_token(),
-                    ))
+                    Err(ParseError::new(&e.msg, &self.current_token()))
                 }
             },
         }
@@ -92,11 +91,27 @@ impl Parser {
         let mut traits = vec![];
         if matches!(self.current_token().ttype, TokenType::With) {
             self.advance();
+
+            dbg!("struct_decl (trait) {}", self.current_token());
+
             loop {
-                traits.push(self.parse_expr()?);
-                if !matches!(self.current_token().ttype, TokenType::Comma) {
+                if matches!(self.current_token().ttype, TokenType::Identifier) {
                     self.advance();
-                    break;
+                    dbg!(self.tokens[self.current - 1].clone());
+                    traits.push(Expr::VarExpr(VarExpr {
+                        name: self.tokens[self.current - 1].clone(),
+                    }));
+
+                    if matches!(self.current_token().ttype, TokenType::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                } else {
+                    return Err(ParseError::new(
+                        "Expected trait name.",
+                        &self.current_token(),
+                    ));
                 }
             }
         }
@@ -112,11 +127,8 @@ impl Parser {
         let mut methods = vec![];
 
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
-            // skip over right brace
-            //self.advance();
-
             if self.check(TokenType::Fn) {
-                methods.push(self.fn_decl()?);
+                methods.push(self.fn_decl(false)?);
                 // if comma is present, skip over it
                 if matches!(self.current_token().ttype, TokenType::Comma) {
                     self.advance();
@@ -133,7 +145,7 @@ impl Parser {
                     let field_name = self
                         .consume(TokenType::Identifier, "Expected field name.")?
                         .clone();
-                    
+
                     println!("field name {:?}", field_name);
 
                     self.consume(TokenType::Colon, "Expected ':' after field name.")?;
@@ -152,7 +164,6 @@ impl Parser {
                         self.advance();
                         break;
                     }
-
                 }
             }
         }
@@ -179,7 +190,61 @@ impl Parser {
 
         let mut methods = vec![];
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
-            methods.push(self.fn_decl()?);
+            if matches!(self.current_token().ttype, TokenType::Fn) {
+                self.advance();
+                let name = self
+                    .consume(TokenType::Identifier, "Expected function name.")?
+                    .clone();
+
+                self.consume(TokenType::LeftParen, "Expected '(' after function name.")?;
+
+                let mut params = vec![];
+                while !self.check(TokenType::RightParen) && !self.is_at_end() {
+                    dbg!(self.current_token());
+
+                    let param_name = self
+                        .consume(TokenType::Identifier, "Expected parameter name.")?
+                        .clone();
+                    dbg!(&param_name);
+                    self.consume(TokenType::Colon, "Expected ':' after parameter name.")?;
+                    let param_type = self.parse_type()?;
+                    dbg!(&param_type);
+                    params.push((param_name.clone(), param_type));
+
+                    if matches!(self.current_token().ttype, TokenType::Comma) {
+                        self.advance();
+                    }
+                }
+
+                self.consume(
+                    TokenType::RightParen,
+                    "Expected ')' after function parameters.",
+                )?;
+
+                self.consume(TokenType::Colon, "Expect ':' after function parameters.")?;
+
+                let return_type = self.parse_type()?;
+                self.consume(
+                    TokenType::Semicolon,
+                    "Expected ';' after function declaration.",
+                )?;
+
+                methods.push(Stmt::FnStmt(FnStmt {
+                    name,
+                    params,
+                    return_type: Some(return_type),
+                    body: Box::new(Stmt::BlockStmt(BlockStmt { statements: vec![] })),
+                    meta: FnMeta {
+                        is_abstract: true,
+                        is_pub: false,
+                    },
+                }))
+            } else {
+                return Err(ParseError::new(
+                    "Expected function declaration in trait body.",
+                    &self.current_token(),
+                ));
+            }
         }
 
         self.consume(TokenType::RightBrace, "Expected '}' after trait body.")?;
@@ -203,6 +268,7 @@ impl Parser {
             let mut fields = vec![];
 
             if matches!(self.current_token().ttype, TokenType::LeftParen) {
+                self.advance();
                 loop {
                     let field_name = self
                         .consume(TokenType::Identifier, "Expected field name.")?
@@ -222,6 +288,7 @@ impl Parser {
             variants.push((variant_name.clone(), fields));
 
             if !matches!(self.current_token().ttype, TokenType::Comma) {
+                self.advance();
                 break;
             }
         }
@@ -234,7 +301,7 @@ impl Parser {
         }))
     }
 
-    fn fn_decl(&mut self) -> ParseResult<Stmt> {
+    fn fn_decl(&mut self, is_pub: bool) -> ParseResult<Stmt> {
         self.advance();
         dbg!(self.current_token());
 
@@ -248,8 +315,6 @@ impl Parser {
         while !self.check(TokenType::RightParen) && !self.is_at_end() {
             dbg!(self.current_token());
 
-            // let is_mut = matches!(self.current_token().ttype, TokenType::Mut);
-
             let param_name = self
                 .consume(TokenType::Identifier, "Expected parameter name.")?
                 .clone();
@@ -257,7 +322,7 @@ impl Parser {
             self.consume(TokenType::Colon, "Expected ':' after parameter name.")?;
             let param_type = self.parse_type()?;
             dbg!(&param_type);
-            params.push((param_name.clone(), param_type, true));
+            params.push((param_name.clone(), param_type));
 
             if matches!(self.current_token().ttype, TokenType::Comma) {
                 self.advance();
@@ -287,6 +352,10 @@ impl Parser {
             params,
             return_type,
             body: Box::new(body),
+            meta: FnMeta {
+                is_abstract: false,
+                is_pub,
+            },
         }))
     }
 
@@ -324,6 +393,58 @@ impl Parser {
         }))
     }
 
+    fn alias_decl(&mut self) -> ParseResult<Stmt> {
+        self.advance();
+        let name = self
+            .consume(TokenType::Identifier, "Expected alias name.")?
+            .clone();
+
+        self.consume(TokenType::Equal, "Expected '=' after alias name.")?;
+
+        let aliased_type = self.parse_type()?;
+
+        self.consume(
+            TokenType::Semicolon,
+            "Expected ';' after alias declaration.",
+        )?;
+
+        Ok(Stmt::AliasStmt(AliasStmt { name, aliased_type }))
+    }
+
+    fn extern_decl(&mut self) -> ParseResult<Stmt> {
+        self.advance();
+        self.consume(TokenType::Fn, "Expected 'fn' after 'extern'.")?;
+        let name = self
+            .consume(TokenType::Identifier, "Expected function name.")?
+            .clone();
+        self.consume(TokenType::LeftParen, "Expected '(' after function name.")?;
+        let mut param_types = vec![];
+        loop {
+            if self.check(TokenType::RightParen) {
+                break;
+            }
+
+            let param_type = self.parse_type()?;
+            param_types.push(param_type);
+
+            if matches!(self.current_token().ttype, TokenType::Comma) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        self.consume(TokenType::RightParen, "Expeced ')' after parameter types.")?;
+        self.consume(TokenType::Arrow, "Expected '->' after parameter types.")?;
+        let return_type = self.parse_type()?;
+        self.consume(TokenType::Semicolon, "Expected ';' after extern function declaration.")?;
+
+        Ok(Stmt::ExternFnStmt(ExternFnStmt {
+            name,
+            return_type,
+            param_types,
+        }))
+    }
+
     fn parse_type(&mut self) -> ParseResult<Type> {
         // struct types and function pointers are not supported
         // for the time being to keep things simple.
@@ -335,7 +456,14 @@ impl Parser {
                 dbg!(self.current_token());
                 let inner = self.parse_type()?;
                 self.consume(TokenType::Semicolon, "Expected ';' after array type.")?;
-                let size = self.current_token().value.parse().unwrap();
+                let size = self.current_token().value.clone();
+
+                let size = if size == "?" {
+                    0
+                } else {
+                    size.parse().unwrap()
+                };
+
                 self.advance();
                 self.consume(TokenType::RightBracket, "Expected ']' after array type.")?;
 
@@ -344,8 +472,59 @@ impl Parser {
 
             TokenType::Caret => {
                 self.advance();
+                dbg!(&self.current_token());
+                let is_mut_ptr = if matches!(self.current_token().ttype, TokenType::Mut) {
+                    self.advance();
+                    true
+                } else if matches!(self.current_token().ttype, TokenType::Const) {
+                    self.advance();
+                    false
+                } else {
+                    Err(ParseError::new(
+                        "Expected 'mut' or 'const' after '^'.",
+                        &self.current_token(),
+                    ))?
+                };
+
                 let inner = self.parse_type()?;
-                Ok(Type::Pointer(Box::new(inner)))
+                Ok(Type::Pointer(Box::new(inner), is_mut_ptr))
+            }
+
+            TokenType::Ampersand => {
+                self.advance();
+                let is_mut_ref = if matches!(self.current_token().ttype, TokenType::Mut) {
+                    self.advance();
+                    true
+                } else {
+                    false
+                };
+
+                let inner = self.parse_type()?;
+                Ok(Type::Reference(Box::new(inner), is_mut_ref))
+            }
+
+            TokenType::Fn => {
+                self.advance();
+                self.consume(TokenType::LeftParen, "Expected '(' after 'fn'.")?;
+                let mut param_types = vec![];
+                loop {
+                    if self.check(TokenType::RightParen) {
+                        break;
+                    }
+
+                    let param_type = self.parse_type()?;
+                    param_types.push(param_type);
+
+                    if matches!(self.current_token().ttype, TokenType::Comma) {
+                        self.advance();
+                    } else {
+                        break;
+                    }
+                }
+                self.consume(TokenType::RightParen, "Expeced ')' after parameter types.")?;
+                self.consume(TokenType::Arrow, "Expected '->' after parameter types.")?;
+                let return_type = self.parse_type()?;
+                Ok(Type::FunctionPtr(Box::new(return_type), param_types))
             }
 
             TokenType::Identifier => {
@@ -372,7 +551,7 @@ impl Parser {
 
                     "void" => Ok(Type::Void),
 
-                    _ => Err(self.error(&token, "Unrecognized type.")),
+                    _ => Ok(Type::UserDefined(token.value)),
                 }
             }
 
@@ -512,6 +691,7 @@ impl Parser {
         println!("assign {:?}", expr);
 
         if matches!(self.current_token().ttype, TokenType::Equal) {
+            self.advance();
             let value = self.assignment()?;
 
             match &expr {
@@ -540,6 +720,7 @@ impl Parser {
         let mut expr = self.and()?;
         println!("or {:?}", expr);
         while matches!(self.current_token().ttype, TokenType::PipePipe) {
+            self.advance();
             let operator = self.current_token().clone();
             let right = self.and()?;
             expr = Expr::BinaryExpr(BinaryExpr {
@@ -556,6 +737,7 @@ impl Parser {
         let mut expr = self.equality()?;
         println!("and {:?}", expr);
         while matches!(self.current_token().ttype, TokenType::AmpersandAmpersand) {
+            self.advance();
             let operator = self.current_token().clone();
             let right = self.equality()?;
             expr = Expr::BinaryExpr(BinaryExpr {
@@ -576,6 +758,7 @@ impl Parser {
             self.current_token().ttype,
             TokenType::EqualEqual | TokenType::ExclamationEqual
         ) {
+            self.advance();
             let operator = self.current_token().clone();
             let right = self.comparison()?;
 
@@ -597,6 +780,7 @@ impl Parser {
             self.current_token().ttype,
             TokenType::Greater | TokenType::GreaterEqual | TokenType::Less | TokenType::LessEqual
         ) {
+            self.advance();
             let operator = self.current_token().clone();
             let right = self.term()?;
 
@@ -617,6 +801,7 @@ impl Parser {
             self.current_token().ttype,
             TokenType::Plus | TokenType::Minus
         ) {
+            self.advance();
             let operator = self.current_token().clone();
             let right = self.factor()?;
 
@@ -637,6 +822,7 @@ impl Parser {
             self.current_token().ttype,
             TokenType::Star | TokenType::Slash
         ) {
+            self.advance();
             let operator = self.current_token().clone();
             let right = self.unary()?;
 
@@ -656,6 +842,7 @@ impl Parser {
             self.current_token().ttype,
             TokenType::Exclamation | TokenType::Minus
         ) {
+            self.advance();
             let operator = self.current_token().clone();
             self.advance();
             let right = self.unary()?;
@@ -675,8 +862,10 @@ impl Parser {
         println!("call {:?}", expr);
         loop {
             if matches!(self.current_token().ttype, TokenType::LeftParen) {
+                self.advance();
                 expr = self.finish_call(expr)?;
             } else if matches!(self.current_token().ttype, TokenType::Dot) {
+                self.advance();
                 let name = self.consume(TokenType::Identifier, "Expected property name.")?;
                 expr = Expr::GetExpr(GetExpr {
                     name: name.clone(),
@@ -698,6 +887,7 @@ impl Parser {
                 arguments.push(self.parse_expr()?);
 
                 if matches!(self.current_token().ttype, TokenType::Comma) {
+                    self.advance();
                     break;
                 }
             }
@@ -714,31 +904,25 @@ impl Parser {
     fn primary(&mut self) -> ParseResult<Expr> {
         println!("prim {:?}", self.current_token());
         let token = self.current_token().clone();
+        self.advance();
 
         match token.ttype {
-            TokenType::Number => {
-                self.advance();
-                Ok(Expr::LiteralExpr(LiteralExpr {
-                    value: token.clone(),
-                }))
-            }
+            TokenType::Number => Ok(Expr::LiteralExpr(LiteralExpr {
+                value: token.clone(),
+            })),
 
-            TokenType::String => {
-                self.advance();
-                Ok(Expr::LiteralExpr(LiteralExpr {
-                    value: token.clone(),
-                }))
-            }
+            TokenType::String => Ok(Expr::LiteralExpr(LiteralExpr {
+                value: token.clone(),
+            })),
 
             TokenType::Identifier => {
-                self.advance();
+                dbg!(self.current_token());
                 Ok(Expr::VarExpr(VarExpr {
                     name: token.clone(),
                 }))
             }
 
             TokenType::LeftParen => {
-                self.advance();
                 let expr = self.parse_expr()?;
                 self.consume(TokenType::RightParen, "Expected ')' after expression.")?;
                 Ok(Expr::GroupingExpr(GroupingExpr {
@@ -766,6 +950,14 @@ impl Parser {
         }
 
         self.current_token().ttype == ttype
+    }
+
+    fn check_next(&mut self, ttype: TokenType) -> bool {
+        if self.is_at_end() {
+            return false;
+        }
+
+        self.tokens[self.current + 1].ttype == ttype
     }
 
     fn advance(&mut self) {

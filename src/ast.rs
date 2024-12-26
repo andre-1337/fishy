@@ -6,6 +6,7 @@ pub enum Stmt {
     StructStmt(StructStmt),
     ExprStmt(ExprStmt),
     FnStmt(FnStmt),
+    ExternFnStmt(ExternFnStmt),
     IfStmt(IfStmt),
     ReturnStmt(ReturnStmt),
     LetStmt(LetStmt),
@@ -14,6 +15,7 @@ pub enum Stmt {
     TraitStmt(TraitStmt),
     EnumStmt(EnumStmt),
     BreakStmt(BreakStmt),
+    AliasStmt(AliasStmt),
 }
 
 #[derive(Debug, Clone)]
@@ -66,12 +68,26 @@ pub struct ExprStmt {
 }
 
 #[derive(Debug, Clone)]
+pub struct FnMeta {
+    pub is_pub: bool,
+    pub is_abstract: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct FnStmt {
     pub name: Token,
-    // name, type, mutable?
-    pub params: Vec<(Token, Type, bool)>,
+    // name, type
+    pub params: Vec<(Token, Type)>,
     pub return_type: Option<Type>,
     pub body: Box<Stmt>,
+    pub meta: FnMeta,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExternFnStmt {
+    pub name: Token,
+    pub param_types: Vec<Type>,
+    pub return_type: Type,
 }
 
 #[derive(Debug, Clone)]
@@ -123,6 +139,12 @@ pub struct EnumStmt {
 #[derive(Debug, Clone)]
 pub struct BreakStmt {
     pub keyword: Token,
+}
+
+#[derive(Debug, Clone)]
+pub struct AliasStmt {
+    pub name: Token,
+    pub aliased_type: Type,
 }
 
 #[derive(Debug, Clone)]

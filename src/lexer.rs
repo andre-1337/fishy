@@ -247,6 +247,9 @@ impl Lexer {
                         if let Some('=') = self.peek() {
                             self.next();
                             tokens.push(self.make_token(TokenType::MinusEqual, "-=".to_string()));
+                        } else if let Some('>') = self.peek() {
+                            self.next();
+                            tokens.push(self.make_token(TokenType::Arrow, "->".to_string()));
                         } else {
                             tokens.push(self.make_token(TokenType::Minus, "-".to_string()));
                         }
