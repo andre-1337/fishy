@@ -44,20 +44,19 @@ impl Parser {
         Parser { tokens, current: 0 }
     }
 
-    pub fn parse(&mut self) -> Module {
+    pub fn parse(&mut self) -> ParseResult<Module> {
         let mut stmts = vec![];
 
         while !self.is_at_end() {
             match self.declaration() {
                 Ok(stmt) => stmts.push(stmt),
                 Err(err) => {
-                    self.sync();
-                    panic!("{}", err);
+                    return Err(err);
                 }
             }
         }
 
-        Module::new("main".to_string(), stmts)
+        Ok(Module::new("main".to_string(), stmts))
     }
 
     fn declaration(&mut self) -> ParseResult<Stmt> {
@@ -862,7 +861,6 @@ impl Parser {
         println!("call {:?}", expr);
         loop {
             if matches!(self.current_token().ttype, TokenType::LeftParen) {
-                self.advance();
                 expr = self.finish_call(expr)?;
             } else if matches!(self.current_token().ttype, TokenType::Dot) {
                 self.advance();
@@ -881,18 +879,24 @@ impl Parser {
 
     fn finish_call(&mut self, callee: Expr) -> ParseResult<Expr> {
         let mut arguments = vec![];
-
+        self.consume(TokenType::LeftParen, "Expected '(' after callee.")?;
         if !self.check(TokenType::RightParen) {
             loop {
+                if matches!(self.current_token().ttype, TokenType::RightParen) {
+                    break;
+                }
+
                 arguments.push(self.parse_expr()?);
 
                 if matches!(self.current_token().ttype, TokenType::Comma) {
                     self.advance();
+                }
+
+                if matches!(self.current_token().ttype, TokenType::RightParen) {
                     break;
                 }
             }
         }
-
         self.consume(TokenType::RightParen, "Expected ')' after arguments.")?;
 
         Ok(Expr::CallExpr(CallExpr {
