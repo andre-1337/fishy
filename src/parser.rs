@@ -61,53 +61,48 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> ParseResult<Stmt> {
-        if matches!(self.current_token().ttype, TokenType::Struct) {
-            return self.struct_decl();
-        }
-
-        if matches!(self.current_token().ttype, TokenType::Trait) {
-            return self.trait_decl();
-        }
-
-        if matches!(self.current_token().ttype, TokenType::Enum) {
-            return self.enum_decl();
-        }
-
-        if matches!(self.current_token().ttype, TokenType::Fn) {
-            return self.fn_decl();
-        }
-
-        if matches!(self.current_token().ttype, TokenType::Let) {
-            return self.let_decl();
-        }
-
-        match self.statement() {
-            Ok(stmt) => Ok(stmt),
-            Err(_) => {
-                self.sync();
-                Err(ParseError::new(
-                    "Failed to parse declaration.",
-                    self.current_token(),
-                ))
-            }
+        match self.current_token().ttype {
+            TokenType::Struct => self.struct_decl(),
+            TokenType::Trait => self.trait_decl(),
+            TokenType::Enum => self.enum_decl(),
+            TokenType::Fn => self.fn_decl(),
+            TokenType::Let => self.let_decl(),
+            _ => match self.statement() {
+                Ok(stmt) => Ok(stmt),
+                Err(_) => {
+                    self.sync();
+                    Err(ParseError::new(
+                        "Failed to parse declaration.",
+                        self.current_token(),
+                    ))
+                }
+            },
         }
     }
 
     fn struct_decl(&mut self) -> ParseResult<Stmt> {
+        // advance passed the struct keyword
+        self.advance();
+
         let name = self
             .consume(TokenType::Identifier, "Expected struct name.")?
             .clone();
+
         println!("name {:?}", name);
         let mut traits = vec![];
         if matches!(self.current_token().ttype, TokenType::With) {
+            self.advance();
             loop {
                 traits.push(self.parse_expr()?);
                 if !matches!(self.current_token().ttype, TokenType::Comma) {
+                    self.advance();
                     break;
                 }
             }
         }
         println!("traits {:?}", traits);
+        dbg!(self.current_token());
+
         self.consume(
             TokenType::LeftBrace,
             "Expected '{' after struct name or traits.",
@@ -117,27 +112,53 @@ impl Parser {
         let mut methods = vec![];
 
         while !self.check(TokenType::RightBrace) && !self.is_at_end() {
-            self.advance();
+            // skip over right brace
+            //self.advance();
+
             if self.check(TokenType::Fn) {
-                self.advance();
                 methods.push(self.fn_decl()?);
+                // if comma is present, skip over it
+                if matches!(self.current_token().ttype, TokenType::Comma) {
+                    self.advance();
+                }
             } else {
                 loop {
-                    if !matches!(self.current_token().ttype, TokenType::Comma) {
+                    println!("field loop {:?}", self.current_token());
+
+                    // break out if right brace is reached
+                    if matches!(self.current_token().ttype, TokenType::RightBrace) {
                         break;
                     }
 
                     let field_name = self
                         .consume(TokenType::Identifier, "Expected field name.")?
                         .clone();
+                    
+                    println!("field name {:?}", field_name);
+
                     self.consume(TokenType::Colon, "Expected ':' after field name.")?;
+
                     let field_type = self.parse_type()?;
+                    println!("field type {:?}", field_type);
+
                     fields.push((field_name.clone(), field_type));
+
+                    // break out if right brace is reached
+                    if matches!(self.current_token().ttype, TokenType::RightBrace) {
+                        break;
+                    }
+
+                    if matches!(self.current_token().ttype, TokenType::Comma) {
+                        self.advance();
+                        break;
+                    }
+
                 }
             }
         }
 
         println!("fields {:?}", fields);
+        dbg!(self.current_token());
 
         self.consume(TokenType::RightBrace, "Expected '}' after struct body.")?;
 
@@ -150,6 +171,7 @@ impl Parser {
     }
 
     fn trait_decl(&mut self) -> ParseResult<Stmt> {
+        self.advance();
         let name = self
             .consume(TokenType::Identifier, "Expected trait name.")?
             .clone();
@@ -166,6 +188,7 @@ impl Parser {
     }
 
     fn enum_decl(&mut self) -> ParseResult<Stmt> {
+        self.advance();
         let name = self
             .consume(TokenType::Identifier, "Expected enum name.")?
             .clone();
@@ -212,6 +235,9 @@ impl Parser {
     }
 
     fn fn_decl(&mut self) -> ParseResult<Stmt> {
+        self.advance();
+        dbg!(self.current_token());
+
         let name = self
             .consume(TokenType::Identifier, "Expected function name.")?
             .clone();
@@ -220,25 +246,33 @@ impl Parser {
 
         let mut params = vec![];
         while !self.check(TokenType::RightParen) && !self.is_at_end() {
-            let is_mut = matches!(self.current_token().ttype, TokenType::Mut);
+            dbg!(self.current_token());
+
+            // let is_mut = matches!(self.current_token().ttype, TokenType::Mut);
+
             let param_name = self
                 .consume(TokenType::Identifier, "Expected parameter name.")?
                 .clone();
+            dbg!(&param_name);
             self.consume(TokenType::Colon, "Expected ':' after parameter name.")?;
             let param_type = self.parse_type()?;
-            params.push((param_name.clone(), param_type, is_mut));
+            dbg!(&param_type);
+            params.push((param_name.clone(), param_type, true));
 
-            if !matches!(self.current_token().ttype, TokenType::Comma) {
-                break;
+            if matches!(self.current_token().ttype, TokenType::Comma) {
+                self.advance();
             }
         }
 
+        dbg!(&params);
+        dbg!(self.current_token());
         self.consume(
             TokenType::RightParen,
             "Expected ')' after function parameters.",
         )?;
 
         let return_type = if matches!(self.current_token().ttype, TokenType::Colon) {
+            self.advance();
             Some(self.parse_type()?)
         } else {
             None
@@ -257,6 +291,7 @@ impl Parser {
     }
 
     fn let_decl(&mut self) -> ParseResult<Stmt> {
+        self.advance();
         let name = self
             .consume(TokenType::Identifier, "Expected variable name.")?
             .clone();
@@ -264,6 +299,7 @@ impl Parser {
         println!("name {:?}", name);
         let mut type_ = None;
         if matches!(self.current_token().ttype, TokenType::Colon) {
+            self.advance();
             type_ = Some(self.parse_type()?);
         }
 
@@ -291,16 +327,16 @@ impl Parser {
     fn parse_type(&mut self) -> ParseResult<Type> {
         // struct types and function pointers are not supported
         // for the time being to keep things simple.
-        // pointers are enough of a headache as it is.
-
-        println!("type peek {:?}", self.current_token());
+        // pointers are enough of a headache as it is
 
         match self.current_token().ttype {
             TokenType::LeftBracket => {
                 self.advance();
+                dbg!(self.current_token());
                 let inner = self.parse_type()?;
                 self.consume(TokenType::Semicolon, "Expected ';' after array type.")?;
                 let size = self.current_token().value.parse().unwrap();
+                self.advance();
                 self.consume(TokenType::RightBracket, "Expected ']' after array type.")?;
 
                 Ok(Type::Array(Box::new(inner), size))
@@ -357,30 +393,18 @@ impl Parser {
     }
 
     fn statement(&mut self) -> ParseResult<Stmt> {
-        if matches!(self.current_token().ttype, TokenType::If) {
-            return self.if_stmt();
+        match self.current_token().ttype {
+            TokenType::If => self.if_stmt(),
+            TokenType::While => self.while_stmt(),
+            TokenType::For => self.for_stmt(),
+            TokenType::Return => self.return_stmt(),
+            TokenType::Break => self.break_stmt(),
+            _ => self.expression_stmt(),
         }
-
-        if matches!(self.current_token().ttype, TokenType::While) {
-            return self.while_stmt();
-        }
-
-        if matches!(self.current_token().ttype, TokenType::For) {
-            return self.for_stmt();
-        }
-
-        if matches!(self.current_token().ttype, TokenType::Return) {
-            return self.return_stmt();
-        }
-
-        if matches!(self.current_token().ttype, TokenType::Break) {
-            return self.break_stmt();
-        }
-
-        self.expression_stmt()
     }
 
     fn if_stmt(&mut self) -> ParseResult<Stmt> {
+        self.advance();
         self.consume(TokenType::LeftParen, "Expected '(' after 'if'.")?;
         let condition = self.parse_expr()?;
         self.consume(TokenType::RightParen, "Expected ')' after if condition.")?;
@@ -400,6 +424,7 @@ impl Parser {
     }
 
     fn while_stmt(&mut self) -> ParseResult<Stmt> {
+        self.advance();
         self.consume(TokenType::LeftParen, "Expected '(' after 'while'.")?;
         let condition = self.parse_expr()?;
         self.consume(TokenType::RightParen, "Expected ')' after while condition.")?;
@@ -413,6 +438,7 @@ impl Parser {
     }
 
     fn for_stmt(&mut self) -> ParseResult<Stmt> {
+        self.advance();
         self.consume(TokenType::LeftParen, "Expected '(' after 'for'.")?;
 
         let initializer = if matches!(self.current_token().ttype, TokenType::Semicolon) {
@@ -450,6 +476,7 @@ impl Parser {
     }
 
     fn return_stmt(&mut self) -> ParseResult<Stmt> {
+        self.advance();
         let keyword = self.current_token().clone();
         let value = if self.check(TokenType::Semicolon) {
             None
@@ -729,6 +756,7 @@ impl Parser {
             self.current += 1;
             return Ok(token);
         }
+        dbg!(self.current_token());
         Err(self.error(&token, msg))
     }
 
