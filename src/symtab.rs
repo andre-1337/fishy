@@ -1,88 +1,58 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, VecDeque};
 
-use crate::{ast::*, types::Type};
+// type environment implementation from `jun.codes` on the r/programminglanguages discord server
 
-// really hacky symtab. this will be changed for a better implementation soon
-
-#[derive(Debug, Clone)]
-pub struct SymbolTable {
-    pub symbols: HashMap<String, Type>,
+#[derive(Debug)]
+pub struct TypeEnvironment<T> {
+    scopes: VecDeque<BTreeMap<String, T>>,
 }
 
-impl SymbolTable {
-    pub fn new() -> SymbolTable {
-        SymbolTable {
-            symbols: HashMap::new(),
+impl<T> TypeEnvironment<T> {
+    pub fn new() -> TypeEnvironment<T> {
+        TypeEnvironment {
+            scopes: VecDeque::new(),
         }
     }
 
-    pub fn declare_symbols(&mut self, module: &Module) {
-        for stmt in &module.statements {
-            match stmt {
-                Stmt::StructStmt(StructStmt {
-                    name,
-                    fields,
-                    methods,
-                    ..
-                }) => {
-                    let fields = fields
-                        .iter()
-                        .map(|(name, typ)| (name.value.clone(), typ.clone()))
-                        .collect::<Vec<(String, Type)>>();
-                    let methods = methods.iter().map(|method| {
-                        match method {
-                            Stmt::FnStmt(FnStmt { name, params, return_type, .. }) => {
-                                let params = params.iter().map(|(_, typ)| typ.clone()).collect::<Vec<Type>>();
-                                return (name.value.clone(), params, return_type.clone().unwrap_or(Type::Void));
-                            }
+    // push a new scope to the deque
+    pub fn enter_scope(&mut self) {
+        let scope = BTreeMap::new();
+        self.scopes.push_front(scope);
+    }
 
-                            _ => panic!("YOU SHOULDN'T BE ABLE TO SEE THIS; PLEASE OPEN AN ISSUE IN THE REPO!")
-                        }
-                    }).collect::<Vec<(String, Vec<Type>, Type)>>();
+    // pop the topmost scope from the deque
+    pub fn leave_scope(&mut self) {
+        self.scopes.pop_front();
+    }
 
-                    self.symbols
-                        .insert(name.value.clone(), Type::Struct(fields, methods));
-                }
+    // get the depth of the global scope
+    pub fn depth(&self) -> usize {
+        self.scopes.len()
+    }
 
-                Stmt::FnStmt(FnStmt { name, params, return_type, .. }) => {
-                    let params = params.iter().map(|param| param.1.clone()).collect::<Vec<Type>>();
-                    self.symbols.insert(name.value.clone(), Type::FunctionPtr(Box::new(return_type.as_ref().unwrap().clone()), params));
-                }
-
-                Stmt::ExternFnStmt(ExternFnStmt { name, param_types, return_type }) => {
-                    self.symbols.insert(name.value.clone(), Type::FunctionPtr(Box::new(return_type.clone()), param_types.to_vec()));
-                }
-
-                Stmt::LetStmt(LetStmt { name, type_, .. }) => {
-                    self.symbols
-                        .insert(name.value.clone(), type_.clone().unwrap());
-                }
-
-                Stmt::TraitStmt(TraitStmt { name, methods }) => {
-                    let methods = methods.iter().map(|method| {
-                        match method {
-                            Stmt::FnStmt(FnStmt { name, params, return_type, .. }) => {
-                                let params = params.iter().map(|(_, typ)| typ.clone()).collect::<Vec<Type>>();
-                                return (name.value.clone(), params, return_type.clone().unwrap());
-                            }
-
-                            _ => panic!("YOU SHOULDN'T BE ABLE TO SEE THIS; PLEASE OPEN AN ISSUE IN THE REPO!")
-                        }
-                    }).collect::<Vec<(String, Vec<Type>, Type)>>();
-
-                    // yes, traits are being treated as struct types here, but that's irrelevant for the time being
-                    // they will (maybe) have their own "type" soon
-                    self.symbols.insert(name.value.clone(), Type::Struct(vec![], methods));
-                }
-
-                // enums aren't treated yet
-
-                Stmt::AliasStmt(AliasStmt { name, aliased_type }) => {
-                    self.symbols.insert(name.value.clone(), aliased_type.clone());
-                }
-
-                _ => {}
+    pub fn find(&self, name: &str) -> Option<&T> {
+        for scope in &self.scopes {
+            if let Some(item) = scope.get(name) {
+                return Some(item);
             }
         }
+
+        None
+    }
+
+    pub fn add(&mut self, name: &str, id: T) {
+        let scope = self
+            .scopes
+            .front_mut()
+            .expect("TypeEnvironment::add has no scope.");
+        scope.insert(name.to_string(), id);
+    }
+
+    pub fn remove(&mut self, name: &str) {
+        let scope = self
+            .scopes
+            .front_mut()
+            .expect("TypeEnvironment::remove has no scope.");
+        scope.remove(name);
     }
 }
