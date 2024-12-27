@@ -1,4 +1,4 @@
-use fishy::{lexer::Lexer, parser::Parser};
+use fishy::{lexer::Lexer, parser::Parser, symtab::*};
 
 fn main() {
     let code = r#"
@@ -47,5 +47,10 @@ fn main(): i32 {
         }
     };
     
-    println!("{:?}", module);
+    //println!("{:?}", module);
+
+    let mut symtab = SymbolTable::new();
+    symtab.declare_symbols(&module);
+
+    println!("{:#?}", symtab);
 }

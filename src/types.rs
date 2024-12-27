@@ -18,6 +18,8 @@ pub enum Type {
     FunctionPtr(Box<Type>, Vec<Type>),
     // String: name
     UserDefined(String),
+    // Vec<(String, Type)>: field name & field type, Vec<(String, Vec<Type>)>: method name & method types & return type
+    Struct(Vec<(String, Type)>, Vec<(String, Vec<Type>, Type)>),
 }
 
 impl std::fmt::Display for Type {
@@ -35,7 +37,9 @@ impl std::fmt::Display for Type {
                     inner
                 )
             }
-            Type::Reference(inner, is_mut_ref) => write!(f, "&{}{}", if *is_mut_ref { "mut " } else { "" }, inner),
+            Type::Reference(inner, is_mut_ref) => {
+                write!(f, "&{}{}", if *is_mut_ref { "mut " } else { "" }, inner)
+            }
             Type::Array(inner, size) => write!(f, "[{}; {}]", inner, size),
             Type::FunctionPtr(return_type, param_types) => {
                 write!(f, "fn(")?;
@@ -46,8 +50,26 @@ impl std::fmt::Display for Type {
                     }
                 }
                 write!(f, ") -> {}", return_type)
-            },
+            }
             Type::UserDefined(name) => write!(f, "{}", name),
+            Type::Struct(fields, methods) => {
+                write!(f, "struct {{")?;
+
+                for (name, typ) in fields {
+                    write!(f, "{name}: {typ}")?;
+                }
+
+                for (name, param_types, return_type) in methods {
+                    let param_types = param_types
+                        .iter()
+                        .map(|typ| format!("{typ}"))
+                        .collect::<Vec<String>>()
+                        .join(", ");
+                    write!(f, "fn {name}({param_types}) -> {return_type};")?;
+                }
+
+                write!(f, "}}")
+            }
         }
     }
 }
