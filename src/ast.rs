@@ -18,6 +18,27 @@ pub enum Stmt {
     AliasStmt(AliasStmt),
 }
 
+impl Stmt {
+    pub fn fn_body_as_iter(&self) -> Vec<Stmt> {
+        match self {
+            Stmt::FnStmt(FnStmt { body, .. }) => {
+                let body = *body.clone();
+
+                match body {
+                    Stmt::BlockStmt(BlockStmt { statements }) => statements,
+                    _ => panic!(
+                        "YOU SHOULDN'T BE ABLE TO SEE THIS; PLEASE OPEN AN ISSUE IN THE REPOSITORY"
+                    ),
+                }
+            }
+
+            _ => {
+                panic!("YOU SHOULDN'T BE ABLE TO SEE THIS; PLEASE OPEN AN ISSUE IN THE REPOSITORY")
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Expr {
     AssignExpr(AssignExpr),

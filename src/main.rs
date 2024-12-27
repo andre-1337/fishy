@@ -1,4 +1,4 @@
-use fishy::{lexer::Lexer, parser::Parser, symtab::*};
+use fishy::{lexer::Lexer, parser::Parser};
 
 fn main() {
     let code = r#"
@@ -46,6 +46,6 @@ fn main(): i32 {
             return;
         }
     };
-    
+
     println!("{:?}", module);
 }

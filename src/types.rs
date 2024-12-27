@@ -1,6 +1,12 @@
 // The following describes an API to construct types in Fishy
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FnPtr {
+    pub return_type: Box<Type>,
+    pub param_types: Vec<Type>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Type {
     // u8: bits, bool: signed
     Int(u8, bool),
@@ -14,12 +20,23 @@ pub enum Type {
     Reference(Box<Type>, bool),
     // Box<Type>: element type, u32: size
     Array(Box<Type>, u32),
-    // Box<Type>: return type, Vec<Type> parameter types
-    FunctionPtr(Box<Type>, Vec<Type>),
+    // function pointer
+    FunctionPtr(FnPtr),
     // String: name
     UserDefined(String),
-    // Vec<(String, Type)>: field name & field type, Vec<(String, Vec<Type>)>: method name & method types & return type
-    Struct(Vec<(String, Type)>, Vec<(String, Vec<Type>, Type)>),
+    // Vec<(String, Type)>: field name & field type, Vec<(String, Type)>: method name & method type, bool: is_trait
+    Struct(Vec<(String, Type)>, Vec<(String, Type)>, bool),
+}
+
+impl Type {
+    pub fn as_fn(&self) -> &FnPtr {
+        match self {
+            Type::FunctionPtr(fn_ptr) => fn_ptr,
+            _ => {
+                panic!("YOU SHOULDN'T BE ABLE TO SEE THIS; PLEASE OPEN AN ISSUE IN THE REPOSITORY")
+            }
+        }
+    }
 }
 
 impl std::fmt::Display for Type {
@@ -41,31 +58,34 @@ impl std::fmt::Display for Type {
                 write!(f, "&{}{}", if *is_mut_ref { "mut " } else { "" }, inner)
             }
             Type::Array(inner, size) => write!(f, "[{}; {}]", inner, size),
-            Type::FunctionPtr(return_type, param_types) => {
+            Type::FunctionPtr(fn_ptr) => {
                 write!(f, "fn(")?;
-                for (i, param) in param_types.iter().enumerate() {
+                for (i, param) in fn_ptr.param_types.iter().enumerate() {
                     write!(f, "{}", param)?;
-                    if i < param_types.len() - 1 {
+                    if i < fn_ptr.param_types.len() - 1 {
                         write!(f, ", ")?;
                     }
                 }
-                write!(f, ") -> {}", return_type)
+                write!(f, ") -> {}", fn_ptr.return_type)
             }
             Type::UserDefined(name) => write!(f, "{}", name),
-            Type::Struct(fields, methods) => {
-                write!(f, "struct {{")?;
+            Type::Struct(fields, methods, is_trait) => {
+                let typ = if *is_trait { "trait" } else { "struct" };
+                write!(f, "{typ} {{")?;
 
                 for (name, typ) in fields {
                     write!(f, "{name}: {typ}")?;
                 }
 
-                for (name, param_types, return_type) in methods {
-                    let param_types = param_types
+                for (name, method) in methods {
+                    let method = method.as_fn();
+                    let param_types = method
+                        .param_types
                         .iter()
                         .map(|typ| format!("{typ}"))
                         .collect::<Vec<String>>()
                         .join(", ");
-                    write!(f, "fn {name}({param_types}) -> {return_type};")?;
+                    write!(f, "fn {name}({param_types}) -> {};", method.return_type)?;
                 }
 
                 write!(f, "}}")

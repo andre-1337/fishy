@@ -1,7 +1,7 @@
 use crate::{
     ast::*,
     token::{Token, TokenType},
-    types::Type,
+    types::{FnPtr, Type},
 };
 
 #[derive(Debug)]
@@ -526,7 +526,8 @@ impl Parser {
                 self.consume(TokenType::RightParen, "Expeced ')' after parameter types.")?;
                 self.consume(TokenType::Arrow, "Expected '->' after parameter types.")?;
                 let return_type = self.parse_type()?;
-                Ok(Type::FunctionPtr(Box::new(return_type), param_types))
+                let fn_ptr = FnPtr { return_type: Box::new(return_type), param_types };
+                Ok(Type::FunctionPtr(fn_ptr))
             }
 
             TokenType::Identifier => {
