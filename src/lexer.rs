@@ -1,17 +1,19 @@
+use std::{iter::Peekable, str::Chars};
+
 use crate::token::{Position, Token, TokenType};
 
 #[derive(Debug)]
-pub struct Lexer {
-    pub source: String,
+pub struct Lexer<'a> {
+    pub source: Peekable<Chars<'a>>,
     pub position: usize,
     pub line: usize,
     pub column: usize,
 }
 
-impl Lexer {
-    pub fn new(source: String) -> Lexer {
+impl<'a> Lexer<'a> {
+    pub fn new(source: &'a str) -> Lexer<'a> {
         Lexer {
-            source,
+            source: source.chars().peekable(),
             position: 0,
             line: 1,
             column: 1,
@@ -19,7 +21,7 @@ impl Lexer {
     }
 
     pub fn next(&mut self) -> Option<char> {
-        let c = self.source.chars().nth(self.position);
+        let c = self.source.next();
         if let Some('\n') = c {
             self.line += 1;
             self.column = 1;
@@ -30,12 +32,8 @@ impl Lexer {
         c
     }
 
-    pub fn peek(&self) -> Option<char> {
-        self.source.chars().nth(self.position)
-    }
-
-    pub fn previous(&self) -> Option<char> {
-        self.source.chars().nth(self.position - 1)
+    pub fn peek(&mut self) -> Option<&char> {
+        self.source.peek()
     }
 
     pub fn skip_whitespace(&mut self) {
@@ -52,8 +50,8 @@ impl Lexer {
         let mut ident = String::new();
         
         while let Some(c) = self.peek() {
-            if c.is_alphanumeric() || c == '_' {
-                ident.push(c);
+            if c.is_alphanumeric() || *c == '_' {
+                ident.push(*c);
                 self.next();
             } else {
                 break;
@@ -74,11 +72,11 @@ impl Lexer {
             if let Some(c) = self.peek() {
                 match c {
                     'x' | 'X' => {
-                        number.push(c);
+                        number.push(*c);
                         self.next();
                         while let Some(c) = self.peek() {
                             if c.is_digit(16) && c.is_ascii_hexdigit() {
-                                number.push(c);
+                                number.push(*c);
                                 self.next();
                             } else {
                                 break;
@@ -88,11 +86,11 @@ impl Lexer {
                     }
 
                     'o' | 'O' => {
-                        number.push(c);
+                        number.push(*c);
                         self.next();
                         while let Some(c) = self.peek() {
                             if c.is_digit(8) {
-                                number.push(c);
+                                number.push(*c);
                                 self.next();
                             } else {
                                 break;
@@ -102,11 +100,11 @@ impl Lexer {
                     }
 
                     'b' | 'B' => {
-                        number.push(c);
+                        number.push(*c);
                         self.next();
                         while let Some(c) = self.peek() {
                             if c.is_digit(2) {
-                                number.push(c);
+                                number.push(*c);
                                 self.next();
                             } else {
                                 break;
@@ -122,11 +120,11 @@ impl Lexer {
 
         while let Some(c) = self.peek() {
             if c.is_digit(10) {
-                number.push(c);
+                number.push(*c);
                 self.next();
-            } else if c == '.' && !is_float {
+            } else if *c == '.' && !is_float {
                 is_float = true;
-                number.push(c);
+                number.push(*c);
                 self.next();
             } else {
                 break;
@@ -136,7 +134,7 @@ impl Lexer {
         if is_float {
             while let Some(c) = self.peek() {
                 if c.is_digit(10) {
-                    number.push(c);
+                    number.push(*c);
                     self.next();
                 } else {
                     break;
@@ -151,11 +149,11 @@ impl Lexer {
         let mut string = String::new();
         self.next();
         while let Some(c) = self.peek() {
-            if c == '"' {
+            if *c == '"' {
                 self.next();
                 break;
             } else {
-                string.push(c);
+                string.push(*c);
                 self.next();
             }
         }
@@ -166,11 +164,11 @@ impl Lexer {
         let mut string = String::new();
         self.next();
         while let Some(c) = self.peek() {
-            if c == '\'' {
+            if *c == '\'' {
                 self.next();
                 break;
             } else {
-                string.push(c);
+                string.push(*c);
                 self.next();
             }
         }
@@ -186,7 +184,7 @@ impl Lexer {
         while let Some(c) = self.peek() {
             if c.is_whitespace() {
                 self.skip_whitespace();
-            } else if c.is_alphabetic() || c == '_' {
+            } else if c.is_alphabetic() || *c == '_' {
                 let ident = self.lex_identifier();
 
                 let ttype = match ident.as_str() {

@@ -31,7 +31,7 @@ fn main(): i32 {
 }
 "#;
 
-    let mut lexer = Lexer::new(code.to_string());
+    let mut lexer = Lexer::new(code);
     let tokens = lexer.lex();
 
     for token in tokens.clone() {

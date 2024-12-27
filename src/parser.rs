@@ -86,17 +86,17 @@ impl Parser {
             .consume(TokenType::Identifier, "Expected struct name.")?
             .clone();
 
-        println!("name {:?}", name);
+        //println!("name {:?}", name);
         let mut traits = vec![];
         if matches!(self.current_token().ttype, TokenType::With) {
             self.advance();
 
-            dbg!("struct_decl (trait) {}", self.current_token());
+            //dbg!("struct_decl (trait) {}", self.current_token());
 
             loop {
                 if matches!(self.current_token().ttype, TokenType::Identifier) {
                     self.advance();
-                    dbg!(self.tokens[self.current - 1].clone());
+                    //dbg!(self.tokens[self.current - 1].clone());
                     traits.push(Expr::VarExpr(VarExpr {
                         name: self.tokens[self.current - 1].clone(),
                     }));
@@ -114,8 +114,8 @@ impl Parser {
                 }
             }
         }
-        println!("traits {:?}", traits);
-        dbg!(self.current_token());
+        //println!("traits {:?}", traits);
+        //dbg!(self.current_token());
 
         self.consume(
             TokenType::LeftBrace,
@@ -134,7 +134,7 @@ impl Parser {
                 }
             } else {
                 loop {
-                    println!("field loop {:?}", self.current_token());
+                    //println!("field loop {:?}", self.current_token());
 
                     // break out if right brace is reached
                     if matches!(self.current_token().ttype, TokenType::RightBrace) {
@@ -145,12 +145,12 @@ impl Parser {
                         .consume(TokenType::Identifier, "Expected field name.")?
                         .clone();
 
-                    println!("field name {:?}", field_name);
+                    //println!("field name {:?}", field_name);
 
                     self.consume(TokenType::Colon, "Expected ':' after field name.")?;
 
                     let field_type = self.parse_type()?;
-                    println!("field type {:?}", field_type);
+                    //println!("field type {:?}", field_type);
 
                     fields.push((field_name.clone(), field_type));
 
@@ -167,8 +167,8 @@ impl Parser {
             }
         }
 
-        println!("fields {:?}", fields);
-        dbg!(self.current_token());
+        //println!("fields {:?}", fields);
+        //dbg!(self.current_token());
 
         self.consume(TokenType::RightBrace, "Expected '}' after struct body.")?;
 
@@ -199,15 +199,15 @@ impl Parser {
 
                 let mut params = vec![];
                 while !self.check(TokenType::RightParen) && !self.is_at_end() {
-                    dbg!(self.current_token());
+                    //dbg!(self.current_token());
 
                     let param_name = self
                         .consume(TokenType::Identifier, "Expected parameter name.")?
                         .clone();
-                    dbg!(&param_name);
+                    //dbg!(&param_name);
                     self.consume(TokenType::Colon, "Expected ':' after parameter name.")?;
                     let param_type = self.parse_type()?;
-                    dbg!(&param_type);
+                    //dbg!(&param_type);
                     params.push((param_name.clone(), param_type));
 
                     if matches!(self.current_token().ttype, TokenType::Comma) {
@@ -302,7 +302,7 @@ impl Parser {
 
     fn fn_decl(&mut self, is_pub: bool) -> ParseResult<Stmt> {
         self.advance();
-        dbg!(self.current_token());
+        //dbg!(self.current_token());
 
         let name = self
             .consume(TokenType::Identifier, "Expected function name.")?
@@ -312,15 +312,15 @@ impl Parser {
 
         let mut params = vec![];
         while !self.check(TokenType::RightParen) && !self.is_at_end() {
-            dbg!(self.current_token());
+            //dbg!(self.current_token());
 
             let param_name = self
                 .consume(TokenType::Identifier, "Expected parameter name.")?
                 .clone();
-            dbg!(&param_name);
+            //dbg!(&param_name);
             self.consume(TokenType::Colon, "Expected ':' after parameter name.")?;
             let param_type = self.parse_type()?;
-            dbg!(&param_type);
+            //dbg!(&param_type);
             params.push((param_name.clone(), param_type));
 
             if matches!(self.current_token().ttype, TokenType::Comma) {
@@ -328,8 +328,8 @@ impl Parser {
             }
         }
 
-        dbg!(&params);
-        dbg!(self.current_token());
+        //dbg!(&params);
+        //dbg!(self.current_token());
         self.consume(
             TokenType::RightParen,
             "Expected ')' after function parameters.",
@@ -364,7 +364,7 @@ impl Parser {
             .consume(TokenType::Identifier, "Expected variable name.")?
             .clone();
 
-        println!("name {:?}", name);
+        //println!("name {:?}", name);
         let mut type_ = None;
         if matches!(self.current_token().ttype, TokenType::Colon) {
             self.advance();
@@ -373,11 +373,11 @@ impl Parser {
 
         let mut initializer = None;
 
-        println!("current {:?}", self.current_token());
+        //println!("current {:?}", self.current_token());
         if self.current_token().ttype == TokenType::Equal {
             self.advance();
             initializer = Some(self.parse_expr()?);
-            println!("init {:?}", initializer);
+            //println!("init {:?}", initializer);
         }
 
         self.consume(
@@ -455,7 +455,7 @@ impl Parser {
         match self.current_token().ttype {
             TokenType::LeftBracket => {
                 self.advance();
-                dbg!(self.current_token());
+                //dbg!(self.current_token());
                 let inner = self.parse_type()?;
                 self.consume(TokenType::Semicolon, "Expected ';' after array type.")?;
                 let size = self.current_token().value.clone();
@@ -474,7 +474,7 @@ impl Parser {
 
             TokenType::Caret => {
                 self.advance();
-                dbg!(&self.current_token());
+                //dbg!(&self.current_token());
                 let is_mut_ptr = if matches!(self.current_token().ttype, TokenType::Mut) {
                     self.advance();
                     true
@@ -530,7 +530,7 @@ impl Parser {
             }
 
             TokenType::Identifier => {
-                println!("id {:?}", self.current_token());
+                //println!("id {:?}", self.current_token());
                 let token = self.current_token().clone();
                 self.advance();
 
@@ -690,7 +690,7 @@ impl Parser {
 
     fn assignment(&mut self) -> ParseResult<Expr> {
         let expr = self.or()?;
-        println!("assign {:?}", expr);
+        //println!("assign {:?}", expr);
 
         if matches!(self.current_token().ttype, TokenType::Equal) {
             self.advance();
@@ -720,7 +720,7 @@ impl Parser {
 
     fn or(&mut self) -> ParseResult<Expr> {
         let mut expr = self.and()?;
-        println!("or {:?}", expr);
+        //println!("or {:?}", expr);
         while matches!(self.current_token().ttype, TokenType::PipePipe) {
             self.advance();
             let operator = self.current_token().clone();
@@ -737,7 +737,7 @@ impl Parser {
 
     fn and(&mut self) -> ParseResult<Expr> {
         let mut expr = self.equality()?;
-        println!("and {:?}", expr);
+        //println!("and {:?}", expr);
         while matches!(self.current_token().ttype, TokenType::AmpersandAmpersand) {
             self.advance();
             let operator = self.current_token().clone();
@@ -754,7 +754,7 @@ impl Parser {
 
     fn equality(&mut self) -> ParseResult<Expr> {
         let mut expr = self.comparison()?;
-        println!("eq {:?}", expr);
+        //println!("eq {:?}", expr);
 
         while matches!(
             self.current_token().ttype,
@@ -776,7 +776,7 @@ impl Parser {
 
     fn comparison(&mut self) -> ParseResult<Expr> {
         let mut expr = self.term()?;
-        println!("comp {:?}", expr);
+        //println!("comp {:?}", expr);
 
         while matches!(
             self.current_token().ttype,
@@ -798,7 +798,7 @@ impl Parser {
 
     fn term(&mut self) -> ParseResult<Expr> {
         let mut expr = self.factor()?;
-        println!("term {:?}", expr);
+        //println!("term {:?}", expr);
         while matches!(
             self.current_token().ttype,
             TokenType::Plus | TokenType::Minus
@@ -819,7 +819,7 @@ impl Parser {
 
     fn factor(&mut self) -> ParseResult<Expr> {
         let mut expr = self.unary()?;
-        println!("factor {:?}", expr);
+        //println!("factor {:?}", expr);
         while matches!(
             self.current_token().ttype,
             TokenType::Star | TokenType::Slash
@@ -839,7 +839,7 @@ impl Parser {
     }
 
     fn unary(&mut self) -> ParseResult<Expr> {
-        println!("unary {:?}", self.current_token());
+        //println!("unary {:?}", self.current_token());
         if matches!(
             self.current_token().ttype,
             TokenType::Exclamation | TokenType::Minus
@@ -848,8 +848,8 @@ impl Parser {
             let operator = self.current_token().clone();
             self.advance();
             let right = self.unary()?;
-            println!("op {:?}", operator);
-            println!("right {:?}", right);
+            //println!("op {:?}", operator);
+            //println!("right {:?}", right);
             Ok(Expr::UnaryExpr(UnaryExpr {
                 operator,
                 right: Box::new(right),
@@ -861,7 +861,7 @@ impl Parser {
 
     fn call(&mut self) -> ParseResult<Expr> {
         let mut expr = self.primary()?;
-        println!("call {:?}", expr);
+        //println!("call {:?}", expr);
         loop {
             if matches!(self.current_token().ttype, TokenType::LeftParen) {
                 expr = self.finish_call(expr)?;
@@ -876,7 +876,7 @@ impl Parser {
                 break;
             }
         }
-        println!("call {:?}", expr);
+        //println!("call {:?}", expr);
         Ok(expr)
     }
 
@@ -909,7 +909,7 @@ impl Parser {
     }
 
     fn primary(&mut self) -> ParseResult<Expr> {
-        println!("prim {:?}", self.current_token());
+        //println!("prim {:?}", self.current_token());
         let token = self.current_token().clone();
         self.advance();
 
@@ -923,7 +923,7 @@ impl Parser {
             })),
 
             TokenType::Identifier => {
-                dbg!(self.current_token());
+                //dbg!(self.current_token());
                 let name = token.clone();
 
                 if matches!(self.current_token().ttype, TokenType::LeftBrace) {
@@ -999,7 +999,7 @@ impl Parser {
             self.current += 1;
             return Ok(token);
         }
-        dbg!(self.current_token());
+        //dbg!(self.current_token());
         Err(self.error(&token, msg))
     }
 
