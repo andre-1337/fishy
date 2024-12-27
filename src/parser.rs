@@ -99,6 +99,7 @@ impl Parser {
                     //dbg!(self.tokens[self.current - 1].clone());
                     traits.push(Expr::VarExpr(VarExpr {
                         name: self.tokens[self.current - 1].clone(),
+                        inferred_type: None,
                     }));
 
                     if matches!(self.current_token().ttype, TokenType::Comma) {
@@ -526,7 +527,10 @@ impl Parser {
                 self.consume(TokenType::RightParen, "Expeced ')' after parameter types.")?;
                 self.consume(TokenType::Arrow, "Expected '->' after parameter types.")?;
                 let return_type = self.parse_type()?;
-                let fn_ptr = FnPtr { return_type: Box::new(return_type), param_types };
+                let fn_ptr = FnPtr {
+                    return_type: Box::new(return_type),
+                    param_types,
+                };
                 Ok(Type::FunctionPtr(fn_ptr))
             }
 
@@ -698,15 +702,24 @@ impl Parser {
             let value = self.assignment()?;
 
             match &expr {
-                Expr::VarExpr(VarExpr { name }) => Ok(Expr::AssignExpr(AssignExpr {
+                Expr::VarExpr(VarExpr {
+                    name,
+                    inferred_type,
+                }) => Ok(Expr::AssignExpr(AssignExpr {
                     name: name.clone(),
                     value: Box::new(value),
+                    inferred_type: inferred_type.clone(),
                 })),
 
-                Expr::GetExpr(GetExpr { name, object }) => Ok(Expr::SetExpr(SetExpr {
+                Expr::GetExpr(GetExpr {
+                    name,
+                    object,
+                    inferred_type,
+                }) => Ok(Expr::SetExpr(SetExpr {
                     name: name.clone(),
                     object: (*object).clone(),
                     value: Box::new(value),
+                    inferred_type: inferred_type.clone(),
                 })),
 
                 _ => {
@@ -730,6 +743,7 @@ impl Parser {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
+                inferred_type: None,
             });
         }
 
@@ -747,6 +761,7 @@ impl Parser {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
+                inferred_type: None,
             });
         }
 
@@ -769,6 +784,7 @@ impl Parser {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
+                inferred_type: None,
             });
         }
 
@@ -791,6 +807,7 @@ impl Parser {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
+                inferred_type: None,
             });
         }
 
@@ -812,6 +829,7 @@ impl Parser {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
+                inferred_type: None,
             });
         }
 
@@ -833,6 +851,7 @@ impl Parser {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
+                inferred_type: None,
             });
         }
 
@@ -847,13 +866,13 @@ impl Parser {
         ) {
             self.advance();
             let operator = self.current_token().clone();
-            self.advance();
             let right = self.unary()?;
             //println!("op {:?}", operator);
             //println!("right {:?}", right);
             Ok(Expr::UnaryExpr(UnaryExpr {
                 operator,
                 right: Box::new(right),
+                inferred_type: None,
             }))
         } else {
             self.call()
@@ -872,6 +891,7 @@ impl Parser {
                 expr = Expr::GetExpr(GetExpr {
                     name: name.clone(),
                     object: Box::new(expr),
+                    inferred_type: None,
                 });
             } else {
                 break;
@@ -906,6 +926,7 @@ impl Parser {
         Ok(Expr::CallExpr(CallExpr {
             callee: Box::new(callee),
             arguments,
+            inferred_type: None,
         }))
     }
 
@@ -915,12 +936,46 @@ impl Parser {
         self.advance();
 
         match token.ttype {
-            TokenType::Number => Ok(Expr::LiteralExpr(LiteralExpr {
-                value: token.clone(),
-            })),
+            TokenType::Number => {
+                let mut inferred_type = None;
+
+                if let Ok(num) = token.value.parse::<u64>() {
+                    if num >= u8::MIN as u64 && num <= u8::MAX as u64 {
+                        inferred_type = Some(Type::Int(8, false))
+                    } else if num >= u16::MIN as u64 && num <= u16::MAX as u64 {
+                        inferred_type = Some(Type::Int(16, false))
+                    } else if num >= u32::MIN as u64 && num <= u32::MAX as u64 {
+                        inferred_type = Some(Type::Int(32, false))
+                    } else if num >= u64::MIN && num <= u64::MAX {
+                        inferred_type = Some(Type::Int(64, false))
+                    }
+                } else if let Ok(num) = token.value.parse::<i64>() {
+                    if num >= i8::MIN as i64 && num <= i8::MAX as i64 {
+                        inferred_type = Some(Type::Int(8, true))
+                    } else if num >= i16::MIN as i64 && num <= i16::MAX as i64 {
+                        inferred_type = Some(Type::Int(16, true))
+                    } else if num >= i32::MIN as i64 && num <= i32::MAX as i64 {
+                        inferred_type = Some(Type::Int(32, true))
+                    } else if num >= i64::MIN && num <= i64::MAX {
+                        inferred_type = Some(Type::Int(64, true))
+                    }
+                } else if let Ok(num) = token.value.parse::<f64>() {
+                    if num >= f32::MIN as f64 && num <= f32::MAX as f64 {
+                        inferred_type = Some(Type::Float(32))
+                    } else if num >= f64::MIN && num <= f64::MAX {
+                        inferred_type = Some(Type::Float(64))
+                    }
+                }
+
+                Ok(Expr::LiteralExpr(LiteralExpr {
+                    value: token.clone(),
+                    inferred_type,
+                }))
+            }
 
             TokenType::String => Ok(Expr::LiteralExpr(LiteralExpr {
                 value: token.clone(),
+                inferred_type: Some(Type::Pointer(Box::new(Type::Int(8, false)), false)),
             })),
 
             TokenType::Identifier => {
@@ -929,7 +984,7 @@ impl Parser {
 
                 if matches!(self.current_token().ttype, TokenType::LeftBrace) {
                     self.advance();
-    
+
                     let mut arguments = vec![];
                     loop {
                         let field_name = self
@@ -937,26 +992,30 @@ impl Parser {
                             .clone();
                         self.consume(TokenType::Colon, "Expected ':' after field name.")?;
                         let field_value = self.parse_expr()?;
-    
+
                         arguments.push((field_name.clone(), field_value));
-    
+
                         if matches!(self.current_token().ttype, TokenType::Comma) {
                             self.advance();
                         } else {
                             break;
                         }
                     }
-    
+
                     self.consume(
                         TokenType::RightBrace,
                         "Expected '}' after struct initializer literal.",
                     )?;
-    
-                    return Ok(Expr::StructInitializerExpr(StructInitializerExpr { name, arguments }));
+
+                    return Ok(Expr::StructInitializerExpr(StructInitializerExpr {
+                        name,
+                        arguments,
+                    }));
                 } else {
                     // otherwise it's just a variable reference
                     return Ok(Expr::VarExpr(VarExpr {
                         name: token.clone(),
+                        inferred_type: None,
                     }));
                 }
             }
@@ -966,6 +1025,7 @@ impl Parser {
                 self.consume(TokenType::RightParen, "Expected ')' after expression.")?;
                 Ok(Expr::GroupingExpr(GroupingExpr {
                     expression: Box::new(expr),
+                    inferred_type: None,
                 }))
             }
 
@@ -987,7 +1047,10 @@ impl Parser {
 
                 self.consume(TokenType::RightBracket, "Expected ']' after array literal.")?;
 
-                Ok(Expr::TupleExpr(TupleExpr { values }))
+                Ok(Expr::ArrayInitializerExpr(ArrayInitializerExpr {
+                    values,
+                    inferred_type: None,
+                }))
             }
 
             _ => Err(self.error(&token, "Expected expression.")),

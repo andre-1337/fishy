@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, VecDeque};
 
 #[derive(Debug, Clone)]
 pub struct TypeEnvironment<T> {
-    scopes: VecDeque<BTreeMap<String, T>>,
+    pub scopes: VecDeque<BTreeMap<String, T>>,
 }
 
 impl<T> TypeEnvironment<T> {

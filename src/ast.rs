@@ -18,27 +18,6 @@ pub enum Stmt {
     AliasStmt(AliasStmt),
 }
 
-impl Stmt {
-    pub fn fn_body_as_iter(&self) -> Vec<Stmt> {
-        match self {
-            Stmt::FnStmt(FnStmt { body, .. }) => {
-                let body = *body.clone();
-
-                match body {
-                    Stmt::BlockStmt(BlockStmt { statements }) => statements,
-                    _ => panic!(
-                        "YOU SHOULDN'T BE ABLE TO SEE THIS; PLEASE OPEN AN ISSUE IN THE REPOSITORY"
-                    ),
-                }
-            }
-
-            _ => {
-                panic!("YOU SHOULDN'T BE ABLE TO SEE THIS; PLEASE OPEN AN ISSUE IN THE REPOSITORY")
-            }
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub enum Expr {
     AssignExpr(AssignExpr),
@@ -174,6 +153,7 @@ pub struct AliasStmt {
 pub struct AssignExpr {
     pub name: Token,
     pub value: Box<Expr>,
+    pub inferred_type: Option<Type>,
 }
 
 #[derive(Debug, Clone)]
@@ -181,28 +161,33 @@ pub struct BinaryExpr {
     pub left: Box<Expr>,
     pub operator: Token,
     pub right: Box<Expr>,
+    pub inferred_type: Option<Type>,
 }
 
 #[derive(Debug, Clone)]
 pub struct CallExpr {
     pub callee: Box<Expr>,
     pub arguments: Vec<Expr>,
+    pub inferred_type: Option<Type>,
 }
 
 #[derive(Debug, Clone)]
 pub struct GetExpr {
     pub object: Box<Expr>,
     pub name: Token,
+    pub inferred_type: Option<Type>,
 }
 
 #[derive(Debug, Clone)]
 pub struct GroupingExpr {
     pub expression: Box<Expr>,
+    pub inferred_type: Option<Type>,
 }
 
 #[derive(Debug, Clone)]
 pub struct LiteralExpr {
     pub value: Token,
+    pub inferred_type: Option<Type>,
 }
 
 #[derive(Debug, Clone)]
@@ -210,6 +195,7 @@ pub struct LogicalExpr {
     pub left: Box<Expr>,
     pub operator: Token,
     pub right: Box<Expr>,
+    pub inferred_type: Option<Type>,
 }
 
 #[derive(Debug, Clone)]
@@ -217,28 +203,33 @@ pub struct SetExpr {
     pub object: Box<Expr>,
     pub name: Token,
     pub value: Box<Expr>,
+    pub inferred_type: Option<Type>,
 }
 
 #[derive(Debug, Clone)]
 pub struct UnaryExpr {
     pub operator: Token,
     pub right: Box<Expr>,
+    pub inferred_type: Option<Type>,
 }
 
 #[derive(Debug, Clone)]
 pub struct VarExpr {
     pub name: Token,
+    pub inferred_type: Option<Type>,
 }
 
 #[derive(Debug, Clone)]
 pub struct LambdaExpr {
     pub params: Vec<(Token, Type)>,
     pub body: Box<Stmt>,
+    pub inferred_type: Option<Type>,
 }
 
 #[derive(Debug, Clone)]
 pub struct TupleExpr {
     pub values: Vec<Expr>,
+    pub inferred_type: Option<Type>,
 }
 
 #[derive(Debug, Clone)]
@@ -250,4 +241,5 @@ pub struct StructInitializerExpr {
 #[derive(Debug, Clone)]
 pub struct ArrayInitializerExpr {
     pub values: Vec<Expr>,
+    pub inferred_type: Option<Type>,
 }

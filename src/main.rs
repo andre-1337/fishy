@@ -1,4 +1,4 @@
-use fishy::{lexer::Lexer, parser::Parser};
+use fishy::{lexer::Lexer, parser::Parser, sema::TypeChecker};
 
 fn main() {
     let code = r#"
@@ -29,6 +29,9 @@ struct Person {
 fn main(): i32 {
     printf("Hello, world!");
 }
+
+let x = 1;
+let name: str = "André";
 "#;
 
     let mut lexer = Lexer::new(code);
@@ -48,4 +51,15 @@ fn main(): i32 {
     };
 
     println!("{:?}", module);
+
+    let mut typechecker = TypeChecker::new();
+    let check = match typechecker.check_program(&module) {
+        Ok(type_env) => type_env,
+        Err(e) => {
+            eprintln!("{}", e);
+            return;
+        }
+    };
+
+    println!("{:?}", check.scopes);
 }
