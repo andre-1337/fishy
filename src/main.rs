@@ -47,10 +47,5 @@ fn main(): i32 {
         }
     };
     
-    //println!("{:?}", module);
-
-    let mut symtab = SymbolTable::new();
-    symtab.declare_symbols(&module);
-
-    println!("{:#?}", symtab);
+    println!("{:?}", module);
 }

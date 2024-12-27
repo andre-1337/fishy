@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, VecDeque};
 
-// type environment implementation from `jun.codes` on the r/programminglanguages discord server
+// type environment implementation from jun.codes on the r/programminglanguages discord server
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TypeEnvironment<T> {
     scopes: VecDeque<BTreeMap<String, T>>,
 }
@@ -54,5 +54,13 @@ impl<T> TypeEnvironment<T> {
             .front_mut()
             .expect("TypeEnvironment::remove has no scope.");
         scope.remove(name);
+    }
+
+    pub fn in_current_scope(&self, name: &str) -> bool {
+        self.scopes.front().map_or(false, |scope| scope.contains_key(name))
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&String, &T)> {
+        self.scopes.iter().flat_map(|scope| scope.iter())
     }
 }
