@@ -57,7 +57,9 @@ impl<T> TypeEnvironment<T> {
     }
 
     pub fn in_current_scope(&self, name: &str) -> bool {
-        self.scopes.front().map_or(false, |scope| scope.contains_key(name))
+        self.scopes
+            .front()
+            .map_or(false, |scope| scope.contains_key(name))
     }
 
     pub fn iter(&self) -> impl Iterator<Item = (&String, &T)> {

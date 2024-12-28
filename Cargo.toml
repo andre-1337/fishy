@@ -2,3 +2,7 @@
 name = "fishy"
 version = "0.1.0"
 edition = "2021"
+
+[dependencies]
+miette = { version = "7.4.0", features = [ "fancy" ] }
+thiserror = "2.0.9"

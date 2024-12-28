@@ -167,6 +167,12 @@ impl Default for Position {
     }
 }
 
+impl From<(usize, usize)> for Position {
+    fn from(value: (usize, usize)) -> Self {
+        Position::new(value.0, value.1)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Token {
     pub ttype: TokenType,

@@ -1,10 +1,6 @@
 // the typechecker for fishy
 
-use crate::{
-    ast::*,
-    symtab::TypeEnvironment,
-    types::{FnPtr, Type},
-};
+use crate::{ast::*, symtab::TypeEnvironment, types::*};
 
 // this is here for the time being until fishy gets proper error reporting
 #[derive(Debug, Clone)]
@@ -12,7 +8,7 @@ pub struct TypeCheckError(String);
 
 impl std::fmt::Display for TypeCheckError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "error while typechecking: {}", self.0)
+        write!(f, "TypeError: {}", self.0)
     }
 }
 

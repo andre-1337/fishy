@@ -1,19 +1,21 @@
-use std::{iter::Peekable, str::Chars};
-
-use crate::token::{Position, Token, TokenType};
+use crate::{
+    error::*,
+    token::{Position, Token, TokenType},
+    unit::Unit,
+};
 
 #[derive(Debug)]
-pub struct Lexer<'a> {
-    pub source: Peekable<Chars<'a>>,
+pub struct Lexer {
+    pub unit: Unit,
     pub position: usize,
     pub line: usize,
     pub column: usize,
 }
 
-impl<'a> Lexer<'a> {
-    pub fn new(source: &'a str) -> Lexer<'a> {
+impl Lexer {
+    pub fn new(unit: Unit) -> Lexer {
         Lexer {
-            source: source.chars().peekable(),
+            unit,
             position: 0,
             line: 1,
             column: 1,
@@ -21,19 +23,26 @@ impl<'a> Lexer<'a> {
     }
 
     pub fn next(&mut self) -> Option<char> {
-        let c = self.source.next();
-        if let Some('\n') = c {
-            self.line += 1;
-            self.column = 1;
-        } else {
-            self.column += 1;
+        let c = self.peek();
+
+        if let Some(c) = c {
+            // Avança o índice em bytes baseado no tamanho UTF-8 do caractere
+            self.position += c.len_utf8();
+
+            // Atualiza linha e coluna
+            if c == '\n' {
+                self.line += 1;
+                self.column = 1;
+            } else {
+                self.column += 1;
+            }
         }
-        self.position += 1;
+
         c
     }
 
-    pub fn peek(&mut self) -> Option<&char> {
-        self.source.peek()
+    pub fn peek(&self) -> Option<char> {
+        self.unit.source[self.position..].chars().next()
     }
 
     pub fn skip_whitespace(&mut self) {
@@ -48,10 +57,10 @@ impl<'a> Lexer<'a> {
 
     pub fn lex_identifier(&mut self) -> String {
         let mut ident = String::new();
-        
+
         while let Some(c) = self.peek() {
-            if c.is_alphanumeric() || *c == '_' {
-                ident.push(*c);
+            if c.is_alphanumeric() || c == '_' {
+                ident.push(c);
                 self.next();
             } else {
                 break;
@@ -72,11 +81,11 @@ impl<'a> Lexer<'a> {
             if let Some(c) = self.peek() {
                 match c {
                     'x' | 'X' => {
-                        number.push(*c);
+                        number.push(c);
                         self.next();
                         while let Some(c) = self.peek() {
                             if c.is_digit(16) && c.is_ascii_hexdigit() {
-                                number.push(*c);
+                                number.push(c);
                                 self.next();
                             } else {
                                 break;
@@ -86,11 +95,11 @@ impl<'a> Lexer<'a> {
                     }
 
                     'o' | 'O' => {
-                        number.push(*c);
+                        number.push(c);
                         self.next();
                         while let Some(c) = self.peek() {
                             if c.is_digit(8) {
-                                number.push(*c);
+                                number.push(c);
                                 self.next();
                             } else {
                                 break;
@@ -100,11 +109,11 @@ impl<'a> Lexer<'a> {
                     }
 
                     'b' | 'B' => {
-                        number.push(*c);
+                        number.push(c);
                         self.next();
                         while let Some(c) = self.peek() {
                             if c.is_digit(2) {
-                                number.push(*c);
+                                number.push(c);
                                 self.next();
                             } else {
                                 break;
@@ -120,11 +129,11 @@ impl<'a> Lexer<'a> {
 
         while let Some(c) = self.peek() {
             if c.is_digit(10) {
-                number.push(*c);
+                number.push(c);
                 self.next();
-            } else if *c == '.' && !is_float {
+            } else if c == '.' && !is_float {
                 is_float = true;
-                number.push(*c);
+                number.push(c);
                 self.next();
             } else {
                 break;
@@ -134,7 +143,7 @@ impl<'a> Lexer<'a> {
         if is_float {
             while let Some(c) = self.peek() {
                 if c.is_digit(10) {
-                    number.push(*c);
+                    number.push(c);
                     self.next();
                 } else {
                     break;
@@ -149,11 +158,11 @@ impl<'a> Lexer<'a> {
         let mut string = String::new();
         self.next();
         while let Some(c) = self.peek() {
-            if *c == '"' {
+            if c == '"' {
                 self.next();
                 break;
             } else {
-                string.push(*c);
+                string.push(c);
                 self.next();
             }
         }
@@ -164,11 +173,11 @@ impl<'a> Lexer<'a> {
         let mut string = String::new();
         self.next();
         while let Some(c) = self.peek() {
-            if *c == '\'' {
+            if c == '\'' {
                 self.next();
                 break;
             } else {
-                string.push(*c);
+                string.push(c);
                 self.next();
             }
         }
@@ -179,12 +188,12 @@ impl<'a> Lexer<'a> {
         Token::new(ttype, Position::new(self.line, self.column), value)
     }
 
-    pub fn lex(&mut self) -> Vec<Token> {
+    pub fn lex(&mut self) -> Result<Vec<Token>, FishyError> {
         let mut tokens = Vec::new();
         while let Some(c) = self.peek() {
             if c.is_whitespace() {
                 self.skip_whitespace();
-            } else if c.is_alphabetic() || *c == '_' {
+            } else if c.is_alphabetic() || c == '_' {
                 let ident = self.lex_identifier();
 
                 let ttype = match ident.as_str() {
@@ -425,14 +434,27 @@ impl<'a> Lexer<'a> {
                     }
 
                     _ => {
-                        panic!("unexpected character '{}'", c);
+                        return Err(self
+                            .create_lexer_error(format!("Unrecognized character '{}'", c), None));
                     }
                 }
             }
         }
 
-        tokens.insert(tokens.len(), Token::new(TokenType::Eof, Position::new(self.line, 0), "".to_string()));
-        
-        tokens
+        tokens.insert(
+            tokens.len(),
+            Token::new(TokenType::Eof, Position::new(self.line, 0), "".to_string()),
+        );
+
+        Ok(tokens)
+    }
+
+    fn create_lexer_error(&mut self, msg: String, hint: Option<String>) -> FishyError {
+        FishyError::new_lexer_error(
+            self.unit.clone(),
+            (self.line, self.column).into(),
+            &msg,
+            hint,
+        )
     }
 }

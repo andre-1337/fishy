@@ -1,4 +1,4 @@
-use fishy::{lexer::Lexer, parser::Parser, sema::TypeChecker};
+use fishy::{lexer::Lexer, parser::Parser, sema::TypeChecker, unit::Unit};
 
 fn main() {
     let code = r#"
@@ -33,33 +33,27 @@ fn main(): i32 {
 let x = 1;
 let name: str = "André";
 "#;
+    let unit = Unit::new("test.fsh", code);
 
-    let mut lexer = Lexer::new(code);
+    let mut lexer = Lexer::new(unit);
     let tokens = lexer.lex();
 
-    for token in tokens.clone() {
-        println!("{:?}", token);
-    }
-
-    let mut parser = Parser::new(tokens);
-    let module = match parser.parse() {
-        Ok(module) => module,
+    let tokens = match tokens {
         Err(e) => {
             eprintln!("{}", e);
             return;
         }
+
+        Ok(tokens) => tokens,
     };
+
+    let mut parser = Parser::new(tokens);
+    let module = parser.parse().unwrap();
 
     println!("{:?}", module);
 
     let mut typechecker = TypeChecker::new();
-    let check = match typechecker.check_program(&module) {
-        Ok(type_env) => type_env,
-        Err(e) => {
-            eprintln!("{}", e);
-            return;
-        }
-    };
+    let check = typechecker.check_program(&module).unwrap();
 
     println!("{:?}", check.scopes);
 }
