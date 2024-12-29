@@ -10,7 +10,7 @@ struct Person {
     name: str,
     age: u8,
     address: str,
-    relatives: [Person; ?],
+    relatives: [Person#; ?],
 
     fn new(name: str, age: u8, address: str): Person {
         return Person {

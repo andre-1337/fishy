@@ -434,8 +434,10 @@ impl Lexer {
                     }
 
                     _ => {
-                        return Err(self
-                            .create_lexer_error(format!("Unrecognized character '{}'", c), None));
+                        return Err(self.create_lexer_error(
+                            format!("Unrecognized character '{}'", c),
+                            Some("consider removing the character.".to_string()),
+                        ));
                     }
                 }
             }
