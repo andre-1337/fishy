@@ -10,7 +10,7 @@ struct Person {
     name: str,
     age: u8,
     address: str,
-    relatives: [Person#; ?],
+    relatives: [Person; ?],
 
     fn new(name: str, age: u8, address: str): Person {
         return Person {
@@ -31,14 +31,12 @@ fn main(): i32 {
 }
 
 let x = 1;
-let name: str = "André";
+let name: u8 = "André";
 "#;
     let unit = Unit::new("test.fsh", code);
 
     let mut lexer = Lexer::new(unit);
-    let tokens = lexer.lex();
-
-    let tokens = match tokens {
+    let tokens = match lexer.lex() {
         Err(e) => {
             eprintln!("{}", e);
             return;
@@ -47,13 +45,25 @@ let name: str = "André";
         Ok(tokens) => tokens,
     };
 
-    let mut parser = Parser::new(tokens);
-    let module = parser.parse().unwrap();
+    let mut parser = Parser::new(lexer, tokens);
+    let module = match parser.parse() {
+        Err(e) => {
+            eprintln!("{}", e);
+            return;
+        }
+        Ok(module) => module,
+    };
 
     println!("{:?}", module);
 
-    let mut typechecker = TypeChecker::new();
-    let check = typechecker.check_program(&module).unwrap();
+    let mut typechecker = TypeChecker::new(parser);
+    let check = match typechecker.check_program(&module) {
+        Err(e) => {
+            eprintln!("{}", e);
+            return;
+        }
+        Ok(check) => check,
+    };
 
     println!("{:?}", check.scopes);
 }

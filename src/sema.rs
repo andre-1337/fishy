@@ -1,35 +1,24 @@
 // the typechecker for fishy
 
-use crate::{ast::*, symtab::TypeEnvironment, types::*};
+use crate::{ast::*, error::FishyError, parser::Parser, symtab::TypeEnvironment, types::*};
 
-// this is here for the time being until fishy gets proper error reporting
-#[derive(Debug, Clone)]
-pub struct TypeCheckError(String);
+type TypeCheckResult<T> = Result<T, FishyError>;
 
-impl std::fmt::Display for TypeCheckError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "TypeError: {}", self.0)
-    }
-}
-
-impl std::error::Error for TypeCheckError {}
-
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct TypeChecker {
+    parser: Parser,
     type_env: TypeEnvironment<Type>,
 }
 
 impl TypeChecker {
-    pub fn new() -> TypeChecker {
+    pub fn new(parser: Parser) -> TypeChecker {
         TypeChecker {
+            parser,
             type_env: TypeEnvironment::new(),
         }
     }
 
-    pub fn check_program(
-        &mut self,
-        module: &Module,
-    ) -> Result<TypeEnvironment<Type>, TypeCheckError> {
+    pub fn check_program(&mut self, module: &Module) -> TypeCheckResult<TypeEnvironment<Type>> {
         self.type_env.enter_scope();
         for stmt in &module.statements {
             self.check_statement(stmt)?;
@@ -38,7 +27,7 @@ impl TypeChecker {
         Ok(self.type_env.clone())
     }
 
-    fn check_statement(&mut self, statement: &Stmt) -> Result<(), TypeCheckError> {
+    fn check_statement(&mut self, statement: &Stmt) -> TypeCheckResult<()> {
         match statement {
             Stmt::AliasStmt(AliasStmt { name, aliased_type }) => {
                 self.type_env.add(&name.value, aliased_type.clone());
@@ -59,10 +48,17 @@ impl TypeChecker {
                     }
 
                     if *typ != init_type {
-                        return Err(TypeCheckError(format!(
+                        let fmt = format!(
                             "Type mismatch: expected {}, but got {} instead.",
                             typ, init_type
-                        )));
+                        );
+                        let string = fmt.as_str();
+                        return Err(FishyError::new_typechecker_error(
+                            self.parser.lexer.unit.clone(),
+                            name.position.clone(),
+                            string,
+                            None,
+                        ));
                     }
 
                     self.type_env.add(&name.value, typ.clone());
@@ -76,7 +72,7 @@ impl TypeChecker {
         }
     }
 
-    fn check_expression(&mut self, expr: &Expr) -> Result<Type, TypeCheckError> {
+    fn check_expression(&mut self, expr: &Expr) -> TypeCheckResult<Type> {
         match expr {
             Expr::LiteralExpr(LiteralExpr { inferred_type, .. }) => {
                 if let Some(inferred) = inferred_type {

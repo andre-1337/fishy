@@ -1,47 +1,27 @@
 use crate::{
     ast::*,
+    error::FishyError,
+    lexer::Lexer,
     token::{Token, TokenType},
     types::{FnPtr, Type},
 };
 
-#[derive(Debug)]
-pub struct ParseError {
-    msg: String,
-    token: Token,
-}
-
-impl ParseError {
-    pub fn new(msg: &str, token: &Token) -> ParseError {
-        ParseError {
-            msg: msg.to_string(),
-            token: token.clone(),
-        }
-    }
-}
-
-impl std::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "error at [{}:{}]: {}",
-            self.token.position.line, self.token.position.column, self.msg
-        )
-    }
-}
-
-impl std::error::Error for ParseError {}
-
-type ParseResult<T> = std::result::Result<T, ParseError>;
+type ParseResult<T> = std::result::Result<T, FishyError>;
 
 #[derive(Debug)]
 pub struct Parser {
+    pub lexer: Lexer,
     tokens: Vec<Token>,
     current: usize,
 }
 
 impl Parser {
-    pub fn new(tokens: Vec<Token>) -> Parser {
-        Parser { tokens, current: 0 }
+    pub fn new(lexer: Lexer, tokens: Vec<Token>) -> Parser {
+        Parser {
+            lexer,
+            tokens,
+            current: 0,
+        }
     }
 
     pub fn parse(&mut self) -> ParseResult<Module> {
@@ -72,7 +52,7 @@ impl Parser {
                 Ok(stmt) => Ok(stmt),
                 Err(e) => {
                     self.sync();
-                    Err(ParseError::new(&e.msg, &self.current_token()))
+                    Err(e)
                 }
             },
         }
@@ -108,9 +88,11 @@ impl Parser {
                         break;
                     }
                 } else {
-                    return Err(ParseError::new(
+                    return Err(FishyError::new_parser_error(
+                        self.lexer.unit.clone(),
+                        self.current_token().position.clone(),
                         "Expected trait name.",
-                        &self.current_token(),
+                        None,
                     ));
                 }
             }
@@ -240,9 +222,11 @@ impl Parser {
                     },
                 }))
             } else {
-                return Err(ParseError::new(
+                return Err(FishyError::new_parser_error(
+                    self.lexer.unit.clone(),
+                    self.current_token().position.clone(),
                     "Expected function declaration in trait body.",
-                    &self.current_token(),
+                    None,
                 ));
             }
         }
@@ -483,9 +467,11 @@ impl Parser {
                     self.advance();
                     false
                 } else {
-                    Err(ParseError::new(
+                    Err(FishyError::new_parser_error(
+                        self.lexer.unit.clone(),
+                        self.current_token().position.clone(),
                         "Expected 'mut' or 'const' after '^'.",
-                        &self.current_token(),
+                        None,
                     ))?
                 };
 
@@ -722,10 +708,12 @@ impl Parser {
                     inferred_type: inferred_type.clone(),
                 })),
 
-                _ => {
-                    let token = &self.current_token().clone();
-                    Err(self.error(token, "Invalid assignment target."))
-                }
+                _ => Err(FishyError::new_parser_error(
+                    self.lexer.unit.clone(),
+                    self.current_token().position.clone(),
+                    "Invalid assignment target.",
+                    None,
+                )),
             }
         } else {
             Ok(expr)
@@ -1053,7 +1041,12 @@ impl Parser {
                 }))
             }
 
-            _ => Err(self.error(&token, "Expected expression.")),
+            _ => Err(FishyError::new_parser_error(
+                self.lexer.unit.clone(),
+                token.position.clone(),
+                "Expected expression.",
+                None,
+            )),
         }
     }
 
@@ -1064,7 +1057,12 @@ impl Parser {
             return Ok(token);
         }
         //dbg!(self.current_token());
-        Err(self.error(&token, msg))
+        Err(FishyError::new_parser_error(
+            self.lexer.unit.clone(),
+            token.position.clone(),
+            msg,
+            None,
+        ))
     }
 
     fn check(&mut self, ttype: TokenType) -> bool {
@@ -1085,10 +1083,6 @@ impl Parser {
 
     fn current_token(&mut self) -> &Token {
         &self.tokens[self.current]
-    }
-
-    fn error(&mut self, token: &Token, msg: &str) -> ParseError {
-        ParseError::new(msg, token)
     }
 
     fn sync(&mut self) {
