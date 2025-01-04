@@ -236,6 +236,7 @@ pub struct TupleExpr {
 pub struct StructInitializerExpr {
     pub name: Token,
     pub arguments: Vec<(Token, Expr)>,
+    pub inferred_type: Option<Type>,
 }
 
 #[derive(Debug, Clone)]

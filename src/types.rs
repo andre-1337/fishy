@@ -1,5 +1,4 @@
 // The following describes an API to construct types in Fishy
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FnPtr {
     pub return_type: Box<Type>,
@@ -25,7 +24,7 @@ pub enum Type {
     // String: name
     UserDefined(String),
     // Vec<(String, Type)>: field name & field type, Vec<(String, Type)>: method name & method type, bool: is_trait
-    Struct(Vec<(String, Type)>, Vec<(String, Type)>, bool),
+    Struct(String, Vec<(String, Type)>, Vec<(String, Type)>, bool),
 }
 
 impl Type {
@@ -36,6 +35,106 @@ impl Type {
                 panic!("YOU SHOULDN'T BE ABLE TO SEE THIS; PLEASE OPEN AN ISSUE IN THE REPOSITORY")
             }
         }
+    }
+
+    #[inline(always)]
+    pub fn new_i8() -> Type {
+        Type::Int(8, true)
+    }
+
+    #[inline(always)]
+    pub fn new_i16() -> Type {
+        Type::Int(16, true)
+    }
+
+    #[inline(always)]
+    pub fn new_i32() -> Type {
+        Type::Int(32, true)
+    }
+
+    #[inline(always)]
+    pub fn new_i64() -> Type {
+        Type::Int(64, true)
+    }
+
+    #[inline(always)]
+    pub fn new_u8() -> Type {
+        Type::Int(8, false)
+    }
+
+    #[inline(always)]
+    pub fn new_u16() -> Type {
+        Type::Int(16, false)
+    }
+
+    #[inline(always)]
+    pub fn new_u32() -> Type {
+        Type::Int(32, false)
+    }
+
+    #[inline(always)]
+    pub fn new_u64() -> Type {
+        Type::Int(64, false)
+    }
+
+    #[inline(always)]
+    pub fn new_f16() -> Type {
+        Type::Float(16)
+    }
+
+    #[inline(always)]
+    pub fn new_f32() -> Type {
+        Type::Float(32)
+    }
+
+    #[inline(always)]
+    pub fn new_f64() -> Type {
+        Type::Float(64)
+    }
+
+    #[inline(always)]
+    pub fn new_bool() -> Type {
+        Type::Boolean
+    }
+
+    #[inline(always)]
+    pub fn new_void() -> Type {
+        Type::Void
+    }
+
+    #[inline(always)]
+    pub fn new_mut_ptr(inner: Type) -> Type {
+        Type::Pointer(Box::new(inner), true)
+    }
+
+    #[inline(always)]
+    pub fn new_const_ptr(inner: Type) -> Type {
+        Type::Pointer(Box::new(inner), false)
+    }
+
+    #[inline(always)]
+    pub fn new_mut_ref(inner: Type) -> Type {
+        Type::Reference(Box::new(inner), true)
+    }
+
+    #[inline(always)]
+    pub fn new_ref(inner: Type) -> Type {
+        Type::Reference(Box::new(inner), false)
+    }
+
+    #[inline(always)]
+    pub fn new_array(inner: Type, size: u32) -> Type {
+        Type::Array(Box::new(inner), size)
+    }
+
+    #[inline(always)]
+    pub fn new_user_type(name: &str) -> Type {
+        Type::UserDefined(name.to_string())
+    }
+
+    #[inline(always)]
+    pub fn new_str() -> Type {
+        Type::new_const_ptr(Type::new_u8())
     }
 }
 
@@ -69,9 +168,9 @@ impl std::fmt::Display for Type {
                 write!(f, ") -> {}", fn_ptr.return_type)
             }
             Type::UserDefined(name) => write!(f, "{}", name),
-            Type::Struct(fields, methods, is_trait) => {
+            Type::Struct(name, fields, methods, is_trait) => {
                 let typ = if *is_trait { "trait" } else { "struct" };
-                write!(f, "{typ} {{")?;
+                write!(f, "{typ} {name} {{")?;
 
                 for (name, typ) in fields {
                     write!(f, "{name}: {typ}")?;

@@ -454,7 +454,7 @@ impl Parser {
                 self.advance();
                 self.consume(TokenType::RightBracket, "Expected ']' after array type.")?;
 
-                Ok(Type::Array(Box::new(inner), size))
+                Ok(Type::new_array(inner, size))
             }
 
             TokenType::Caret => {
@@ -526,25 +526,25 @@ impl Parser {
                 self.advance();
 
                 match token.value.as_str() {
-                    "i8" => Ok(Type::Int(8, true)),
-                    "i16" => Ok(Type::Int(16, true)),
-                    "i32" => Ok(Type::Int(32, true)),
-                    "i64" => Ok(Type::Int(64, true)),
+                    "i8" => Ok(Type::new_i8()),
+                    "i16" => Ok(Type::new_i16()),
+                    "i32" => Ok(Type::new_i32()),
+                    "i64" => Ok(Type::new_i64()),
 
-                    "u8" => Ok(Type::Int(8, false)),
-                    "u16" => Ok(Type::Int(16, false)),
-                    "u32" => Ok(Type::Int(32, false)),
-                    "u64" => Ok(Type::Int(64, false)),
+                    "u8" => Ok(Type::new_u8()),
+                    "u16" => Ok(Type::new_u16()),
+                    "u32" => Ok(Type::new_u32()),
+                    "u64" => Ok(Type::new_u64()),
 
-                    "f16" => Ok(Type::Float(16)),
-                    "f32" => Ok(Type::Float(32)),
-                    "f64" => Ok(Type::Float(64)),
+                    "f16" => Ok(Type::new_f16()),
+                    "f32" => Ok(Type::new_f32()),
+                    "f64" => Ok(Type::new_f64()),
 
-                    "bool" => Ok(Type::Boolean),
+                    "bool" => Ok(Type::new_bool()),
 
-                    "void" => Ok(Type::Void),
+                    "void" => Ok(Type::new_void()),
 
-                    _ => Ok(Type::UserDefined(token.value)),
+                    _ => Ok(Type::new_user_type(&token.value)),
                 }
             }
 
@@ -731,7 +731,7 @@ impl Parser {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
-                inferred_type: None,
+                inferred_type: Some(Type::new_bool()),
             });
         }
 
@@ -749,7 +749,7 @@ impl Parser {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
-                inferred_type: None,
+                inferred_type: Some(Type::new_bool()),
             });
         }
 
@@ -772,7 +772,7 @@ impl Parser {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
-                inferred_type: None,
+                inferred_type: Some(Type::new_bool()),
             });
         }
 
@@ -795,7 +795,7 @@ impl Parser {
                 left: Box::new(expr),
                 operator,
                 right: Box::new(right),
-                inferred_type: None,
+                inferred_type: Some(Type::new_bool()),
             });
         }
 
@@ -929,29 +929,29 @@ impl Parser {
 
                 if let Ok(num) = token.value.parse::<u64>() {
                     if num >= u8::MIN as u64 && num <= u8::MAX as u64 {
-                        inferred_type = Some(Type::Int(8, false))
+                        inferred_type = Some(Type::new_u8())
                     } else if num >= u16::MIN as u64 && num <= u16::MAX as u64 {
-                        inferred_type = Some(Type::Int(16, false))
+                        inferred_type = Some(Type::new_u16())
                     } else if num >= u32::MIN as u64 && num <= u32::MAX as u64 {
-                        inferred_type = Some(Type::Int(32, false))
+                        inferred_type = Some(Type::new_u32())
                     } else if num >= u64::MIN && num <= u64::MAX {
-                        inferred_type = Some(Type::Int(64, false))
+                        inferred_type = Some(Type::new_u64())
                     }
                 } else if let Ok(num) = token.value.parse::<i64>() {
                     if num >= i8::MIN as i64 && num <= i8::MAX as i64 {
-                        inferred_type = Some(Type::Int(8, true))
+                        inferred_type = Some(Type::new_i8())
                     } else if num >= i16::MIN as i64 && num <= i16::MAX as i64 {
-                        inferred_type = Some(Type::Int(16, true))
+                        inferred_type = Some(Type::new_i16())
                     } else if num >= i32::MIN as i64 && num <= i32::MAX as i64 {
-                        inferred_type = Some(Type::Int(32, true))
+                        inferred_type = Some(Type::new_i32())
                     } else if num >= i64::MIN && num <= i64::MAX {
-                        inferred_type = Some(Type::Int(64, true))
+                        inferred_type = Some(Type::new_i64())
                     }
                 } else if let Ok(num) = token.value.parse::<f64>() {
                     if num >= f32::MIN as f64 && num <= f32::MAX as f64 {
-                        inferred_type = Some(Type::Float(32))
+                        inferred_type = Some(Type::new_f32())
                     } else if num >= f64::MIN && num <= f64::MAX {
-                        inferred_type = Some(Type::Float(64))
+                        inferred_type = Some(Type::new_f64())
                     }
                 }
 
@@ -963,7 +963,7 @@ impl Parser {
 
             TokenType::String => Ok(Expr::LiteralExpr(LiteralExpr {
                 value: token.clone(),
-                inferred_type: Some(Type::Pointer(Box::new(Type::Int(8, false)), false)),
+                inferred_type: Some(Type::new_str()),
             })),
 
             TokenType::Identifier => {
@@ -974,19 +974,21 @@ impl Parser {
                     self.advance();
 
                     let mut arguments = vec![];
-                    loop {
-                        let field_name = self
-                            .consume(TokenType::Identifier, "Expected field name.")?
-                            .clone();
-                        self.consume(TokenType::Colon, "Expected ':' after field name.")?;
-                        let field_value = self.parse_expr()?;
+                    if matches!(self.current_token().ttype, TokenType::Identifier) {
+                        loop {
+                            let field_name = self
+                                .consume(TokenType::Identifier, "Expected field name.")?
+                                .clone();
+                            self.consume(TokenType::Colon, "Expected ':' after field name.")?;
+                            let field_value = self.parse_expr()?;
 
-                        arguments.push((field_name.clone(), field_value));
+                            arguments.push((field_name.clone(), field_value));
 
-                        if matches!(self.current_token().ttype, TokenType::Comma) {
-                            self.advance();
-                        } else {
-                            break;
+                            if matches!(self.current_token().ttype, TokenType::Comma) {
+                                self.advance();
+                            } else {
+                                break;
+                            }
                         }
                     }
 
@@ -996,8 +998,9 @@ impl Parser {
                     )?;
 
                     return Ok(Expr::StructInitializerExpr(StructInitializerExpr {
-                        name,
+                        name: name.clone(),
                         arguments,
+                        inferred_type: Some(Type::new_user_type(&name.value)),
                     }));
                 } else {
                     // otherwise it's just a variable reference

@@ -30,8 +30,9 @@ fn main(): i32 {
     printf("Hello, world!");
 }
 
-let x = 1;
-let name: u8 = "André";
+struct Point {}
+
+let x: Point = Point {};
 "#;
     let unit = Unit::new("test.fsh", code);
 
