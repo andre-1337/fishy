@@ -12,7 +12,7 @@ struct Person {
     address: str,
     relatives: [Person; ?],
 
-    fn new(name: str, age: u8, address: str): Person {
+    fn new(name: str, age: u8, address: str) {
         return Person {
             name: name,
             age: age,
@@ -26,13 +26,19 @@ struct Person {
     }
 }
 
-fn main(): i32 {
+fn main() {
     printf("Hello, world!");
 }
 
 struct Point {}
 
 let x: Point = Point {};
+
+fn lol(name: str): str {
+    return "lol";
+}
+
+fn test() {}
 "#;
     let unit = Unit::new("test.fsh", code);
 
@@ -55,7 +61,7 @@ let x: Point = Point {};
         Ok(module) => module,
     };
 
-    println!("{:?}", module);
+    //println!("{:?}", module);
 
     let mut typechecker = TypeChecker::new(parser);
     let check = match typechecker.check_program(&module) {
@@ -66,5 +72,5 @@ let x: Point = Point {};
         Ok(check) => check,
     };
 
-    println!("{:?}", check.scopes);
+    println!("{:#?}", check.scopes);
 }
