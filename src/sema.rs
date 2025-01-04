@@ -5,7 +5,7 @@ use crate::{
     error::{FishyError, TypeCheckError},
     parser::Parser,
     symtab::TypeEnvironment,
-    token::Token,
+    token::{Token, TokenType},
     types::*,
 };
 
@@ -83,7 +83,7 @@ impl TypeChecker {
                                 if let Some(ret_type) = return_type {
                                     if let Stmt::ReturnStmt(ReturnStmt { keyword, value }) = stmt {
                                         if let Some(value) = value {
-                                            println!("current function: {}", name.value);
+                                            //println!("current function: {}", name.value);
                                             let value_type = self.check_expression(value)?;
                                             let typ = self.extract_type(
                                                 keyword,
@@ -131,7 +131,7 @@ impl TypeChecker {
                                     }
                                 } else {
                                     // if there's no annotated return type, infer the type from the return statement
-                                    println!("current function: {}", name.value);
+                                    //println!("current function: {}", name.value);
                                     if let Stmt::ReturnStmt(ReturnStmt { value, .. }) = stmt {
                                         if let Some(value) = value {
                                             ret = self.check_expression(value)?;
@@ -168,7 +168,7 @@ impl TypeChecker {
                     let init_type = self.check_expression(init)?;
                     let typ = self.extract_type(name, type_, &init_type)?;
 
-                    println!("{}: {:?}", name.value, typ);
+                    //println!("{}: {:?}", name.value, typ);
 
                     if typ != init_type {
                         let fmt = format!(
@@ -218,7 +218,7 @@ impl TypeChecker {
                         if let Some(ret_type) = return_type {
                             if let Stmt::ReturnStmt(ReturnStmt { keyword, value }) = stmt {
                                 if let Some(value) = value {
-                                    println!("current function: {}", name.value);
+                                    //println!("current function: {}", name.value);
                                     let value_type = self.check_expression(value)?;
                                     let typ =
                                         self.extract_type(keyword, &return_type, &value_type)?;
@@ -261,7 +261,7 @@ impl TypeChecker {
                             }
                         } else {
                             // if there's no annotated return type, infer the type from the return statement
-                            println!("current function: {}", name.value);
+                            //println!("current function: {}", name.value);
                             if let Stmt::ReturnStmt(ReturnStmt { value, .. }) = stmt {
                                 if let Some(value) = value {
                                     ret = self.check_expression(value)?;
@@ -357,6 +357,116 @@ impl TypeChecker {
                     };
                 } else {
                     Ok(Type::new_user_type(&name.value))
+                }
+            }
+
+            Expr::BinaryExpr(BinaryExpr {
+                left,
+                operator,
+                right,
+                inferred_type,
+            }) => {
+                if let Some(inferred) = inferred_type {
+                    Ok(inferred.clone())
+                } else {
+                    match operator.ttype {
+                        TokenType::Plus | TokenType::Minus | TokenType::Star | TokenType::Slash => {
+                            let left_type = self.check_expression(left)?;
+                            let right_type = self.check_expression(right)?;
+
+                            // there's no overflow checks... yet™️
+                            if left_type == Type::new_u8() && right_type == Type::new_u8() {
+                                return Ok(Type::new_u8());
+                            } else if left_type == Type::new_u16() && right_type == Type::new_u16()
+                            {
+                                return Ok(Type::new_u16());
+                            } else if left_type == Type::new_u32() && right_type == Type::new_u32()
+                            {
+                                return Ok(Type::new_u32());
+                            } else if left_type == Type::new_u64() && right_type == Type::new_u64()
+                            {
+                                return Ok(Type::new_u64());
+                            } else if left_type == Type::new_i8() && right_type == Type::new_i8() {
+                                return Ok(Type::new_i8());
+                            } else if left_type == Type::new_i16() && right_type == Type::new_i16()
+                            {
+                                return Ok(Type::new_i16());
+                            } else if left_type == Type::new_i32() && right_type == Type::new_i32()
+                            {
+                                return Ok(Type::new_i32());
+                            } else if left_type == Type::new_i64() && right_type == Type::new_i64()
+                            {
+                                return Ok(Type::new_i64());
+                            } else if left_type == Type::new_f32() && right_type == Type::new_f32()
+                            {
+                                return Ok(Type::new_f32());
+                            } else if left_type == Type::new_f64() && right_type == Type::new_f64()
+                            {
+                                return Ok(Type::new_f64());
+                            } else {
+                                let fmt = format!(
+                                    "Type mismatch: expected int or float, but got {} and {} instead.",
+                                    left_type, right_type
+                                );
+                                let string = fmt.as_str();
+                                return Err(FishyError::new_typechecker_error(
+                                    self.parser.lexer.unit.clone(),
+                                    operator.position.clone(),
+                                    string,
+                                    Some(format!(
+                                        "the left operand has type {}, and the right operand has type {}",
+                                        left_type, right_type
+                                    )),
+                                ));
+                            }
+                        }
+
+                        TokenType::EqualEqual | TokenType::ExclamationEqual => {
+                            let left_type = self.check_expression(left)?;
+                            let right_type = self.check_expression(right)?;
+
+                            if left_type == right_type {
+                                Ok(Type::Boolean)
+                            } else {
+                                let fmt = format!(
+                                    "Type mismatch: expected {}, but got {} instead.",
+                                    left_type, right_type
+                                );
+                                let string = fmt.as_str();
+                                Err(FishyError::new_typechecker_error(
+                                    self.parser.lexer.unit.clone(),
+                                    operator.position.clone(),
+                                    string,
+                                    Some(format!(
+                                        "the left operand has type {}, and the right operand has type {}", left_type, right_type))))
+                            }
+                        }
+                        _ => Err(FishyError::new_typechecker_error(
+                            self.parser.lexer.unit.clone(),
+                            operator.position.clone(),
+                            "Unsupported binary operator",
+                            None,
+                        )),
+                    }
+                }
+            }
+
+            Expr::VarExpr(VarExpr {
+                name,
+                inferred_type,
+            }) => {
+                if let Some(inferred) = inferred_type {
+                    Ok(inferred.clone())
+                } else {
+                    match self.type_env.find(&name.value) {
+                        Some(typ) => Ok(typ.clone()),
+                        None => Err(FishyError::TypeChecker(TypeCheckError {
+                            src: self.parser.lexer.unit.clone(),
+                            location: name.position.clone(),
+                            message: format!("Undefined variable '{}'", name.value),
+                            hint: None,
+                        })),
+                    }
                 }
             }
 

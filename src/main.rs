@@ -2,8 +2,6 @@ use fishy::{lexer::Lexer, parser::Parser, sema::TypeChecker, unit::Unit};
 
 fn main() {
     let code = r#"
-alias str = ^const u8;
-
 extern fn printf(str) -> i32;
 
 struct Person {
@@ -31,14 +29,6 @@ fn main() {
 }
 
 struct Point {}
-
-let x: Point = Point {};
-
-fn lol(name: str): str {
-    return "lol";
-}
-
-fn test() {}
 "#;
     let unit = Unit::new("test.fsh", code);
 

@@ -544,6 +544,8 @@ impl Parser {
 
                     "void" => Ok(Type::new_void()),
 
+                    "str" => Ok(Type::new_str()),
+
                     _ => Ok(Type::new_user_type(&token.value)),
                 }
             }
